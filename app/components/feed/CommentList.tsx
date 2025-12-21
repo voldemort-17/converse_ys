@@ -5,6 +5,7 @@ import { useUser } from "@clerk/nextjs"
 import { Comment, User } from "@prisma/client"
 import { Ellipsis, Heart, SendHorizonalIcon, SmilePlus, Trash } from "lucide-react"
 import Image from "next/image"
+import Link from "next/link"
 import { useOptimistic, useState } from "react"
 
 type CommentType = Comment & { user: User }
@@ -64,11 +65,11 @@ const CommentList = ({ comments, postId, postCreatorId }: { comments: CommentTyp
             </div>}
             {optimisticComment.map((comment) => (
                 <div className="flex gap-4 items-start" key={comment.id}>
-                    <Image src={comment.user.avatar || '/AvatarImage.jpg'} alt='Avatar' height={40} width={40} className="cursor-pointer rounded-[50%] w-10 h-10 object-cover" />
+                    <Link href={`/profile/${comment.user?.username}`}><Image src={comment.user.avatar || '/AvatarImage.jpg'} alt='Avatar' height={40} width={40} className="cursor-pointer rounded-[50%] w-10 h-10 object-cover" /></Link>
                     <div className="flex gap-2 flex-1 flex-col items-start rounded-lg">
                         {/* TEXT Data  */}
                         <div className="flex w-full items-center justify-between">
-                            <div className="flex font-medium flex-1">{(comment.user.name && comment.user.surname) ? comment.user.name + " " + comment.user.surname : comment.user?.username}</div>
+                            <Link href={`/profile/${comment.user?.username}`} className="flex font-medium flex-1">{(comment.user.name && comment.user.surname) ? comment.user.name + " " + comment.user.surname : comment.user?.username}</Link>
                             <Trash className="cursor-pointer" size={16}/>
                         </div>
                         <div>{comment.desc}</div>
