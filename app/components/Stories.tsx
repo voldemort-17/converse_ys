@@ -17,7 +17,7 @@ const Stories = async () => {
                     user: {
                         followers: {
                             some: {
-                                followerId: currentUserId
+                                followingId: currentUserId
                             }
                         }
                     }
