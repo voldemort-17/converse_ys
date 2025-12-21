@@ -1,0 +1,19 @@
+@import "tailwindcss";
+@import 'tailwind-scrollbar-hide/v4';
+
+body {
+    background-color: black;
+}
+
+@keyframes progress {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.animate-progress {
+  animation: progress 5s linear forwards;
+}
