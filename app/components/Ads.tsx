@@ -16,10 +16,10 @@ const Ads = ({size}: {size: "sm" | "md" | "lg"}) => {
                         <div className="flex flex-1 items-start w-full gap-3 text-sm font-bold text-white">
                             <div className="flex items-center gap-4">
                                 <Image src='https://images.pexels.com/photos/32763750/pexels-photo-32763750.jpeg' alt='Avatar' height={32} width={32} className="cursor-pointer rounded-[50%] w-8 h-8 object-cover" />
-                                <Link href='/' className="cursor-pointer text-blue-500">Cristino Ronaldo</Link>
+                                <Link href='/' className="cursor-pointer text-blue-500">Converse In Co.</Link>
                             </div>
                         </div>
-                        <div className={size=== 'sm'? `text-xs` : `text-sm`}>Lorem ipsum dolor sit amet consectetur adipisicing elit. Amet, quibusdam itaque, repellendus non praesentium a autem doloribus, hic eius voluptas iusto odio pariatur veritatis quas sit ducimus temporibus. Maiores voluptate dolore corporis quas unde veritatis vitae illo magnam, beatae, sint, facere soluta eaque magni culpa ut dicta eos. Odit doloremque eos voluptatem ipsam impedit, modi provident. Culpa amet, commodi eveniet quis nihil adipisci hic fuga.</div>
+                        <div className={size=== 'sm'? `text-xs` : `text-sm`}>Converse is a modern social platform built for real connections. Discover new people, explore profiles, share stories, and stay updated with smart notifications — all in one simple, fast experience. Whether you’re connecting with friends or meeting new people, Converse makes it effortless to stay in touch. Enjoy a clean design, secure authentication, and a smooth mobile-friendly experience built for today’s social world. Join a growing community, follow what matters to you, and never miss a moment. Start connecting smarter with Converse — where conversations turn into meaningful connections.</div>
                         <button className="p-2 w-full rounded-lg bg-[#222] cursor-pointer text-sm font-bold">Learn More</button>
                     </div>
                 </div>
