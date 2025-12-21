@@ -4,6 +4,7 @@ import { Post, User } from "@prisma/client"
 import PostInteraction from "./PostInteraction"
 import { Suspense } from "react"
 import PostData from "./PostData"
+import Link from "next/link"
 
 type PostType = Post & { user: User } & { likes: [{ userId: string }] } & { _count: { comments: number } }
 
