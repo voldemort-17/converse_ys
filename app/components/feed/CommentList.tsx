@@ -6,7 +6,7 @@ import type { Prisma } from "@prisma/client";
 import { SendHorizontal, Trash2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useOptimistic, useRef, useState } from "react";
+import { useOptimistic, useRef, useState, useTransition, type FormEvent } from "react";
 import { useFormStatus } from "react-dom";
 
 type CommentWithUser = Prisma.CommentGetPayload<{ include: { user: true } }>;
@@ -14,9 +14,7 @@ type CommentAction =
   | { type: "add"; comment: CommentWithUser }
   | { type: "remove"; commentId: string };
 
-function CommentSubmitButton({ disabled }: { disabled: boolean }) {
-  const { pending } = useFormStatus();
-
+function CommentSubmitButton({ disabled, pending }: { disabled: boolean; pending: boolean }) {
   return (
     <button
       className="icon-action"
@@ -46,6 +44,7 @@ export default function CommentList({ comments, postId, totalComments }: { comme
   const { user } = useUser();
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
+  const [isPosting, startPosting] = useTransition();
   const submittingComment = useRef(false);
   const [optimisticComments, updateOptimisticComments] = useOptimistic(
     comments,
@@ -61,11 +60,13 @@ export default function CommentList({ comments, postId, totalComments }: { comme
     },
   );
 
-  async function add() {
+  function add(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     const pendingDescription = description.trim();
     if (!user || !pendingDescription || submittingComment.current) return;
     submittingComment.current = true;
     setError("");
+    setDescription("");
     const pendingComment = {
       id: `pending-${crypto.randomUUID()}`,
       desc: pendingDescription,
@@ -88,16 +89,18 @@ export default function CommentList({ comments, postId, totalComments }: { comme
         description: null,
       },
     } satisfies CommentWithUser;
-    updateOptimisticComments({ type: "add", comment: pendingComment });
-    setDescription("");
-    try {
-      await addComment(postId, pendingDescription);
-    } catch {
-      setDescription(pendingDescription);
-      setError("Your comment was not posted. Please try again.");
-    } finally {
-      submittingComment.current = false;
-    }
+
+    startPosting(async () => {
+      updateOptimisticComments({ type: "add", comment: pendingComment });
+      try {
+        await addComment(postId, pendingDescription);
+      } catch {
+        setDescription(pendingDescription);
+        setError("Your comment was not posted. Please try again.");
+      } finally {
+        submittingComment.current = false;
+      }
+    });
   }
 
   async function remove(commentId: string) {
@@ -113,7 +116,7 @@ export default function CommentList({ comments, postId, totalComments }: { comme
   return (
     <section id={`comments-${postId}`} className="scroll-mt-24" aria-label="Comments">
       {user && (
-        <form action={add} className="flex items-center gap-3">
+        <form onSubmit={add} className="flex items-center gap-3">
           <Image src={user.imageUrl || "/AvatarImage.jpg"} alt="" height={34} width={34} className="h-9 w-9 rounded-full object-cover" />
           <label className="input-shell flex flex-1 items-center gap-2">
             <span className="sr-only">Write a comment</span>
@@ -124,7 +127,7 @@ export default function CommentList({ comments, postId, totalComments }: { comme
               placeholder="Write a comment…"
               onChange={(event) => setDescription(event.target.value)}
             />
-            <CommentSubmitButton disabled={!description.trim()} />
+            <CommentSubmitButton disabled={!description.trim()} pending={isPosting} />
           </label>
         </form>
       )}
