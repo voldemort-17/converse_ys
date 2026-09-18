@@ -5,11 +5,12 @@ import { useUser } from "@clerk/nextjs";
 import type { Prisma } from "@prisma/client";
 import type { CloudinaryUploadWidgetInfo } from "next-cloudinary";
 import { CldUploadWidget } from "next-cloudinary";
-import { Plus, Send, X } from "lucide-react";
+import { CheckCircle2, LoaderCircle, Plus, Send, X } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type StoryWithUser = Prisma.StoryGetPayload<{ include: { user: true } }>;
+type StoryStatus = "idle" | "uploading" | "ready" | "publishing" | "success" | "error";
 
 export default function StoryList({ stories, userId }: { stories: StoryWithUser[]; userId: string }) {
   const { user } = useUser();
@@ -17,6 +18,8 @@ export default function StoryList({ stories, userId }: { stories: StoryWithUser[
   const [upload, setUpload] = useState<CloudinaryUploadWidgetInfo | null>(null);
   const [activeStory, setActiveStory] = useState<StoryWithUser | null>(null);
   const [error, setError] = useState("");
+  const [status, setStatus] = useState<StoryStatus>("idle");
+  const publishingStory = useRef(false);
 
   useEffect(() => {
     if (!activeStory) return;
@@ -26,26 +29,88 @@ export default function StoryList({ stories, userId }: { stories: StoryWithUser[
     return () => { window.clearTimeout(timer); window.removeEventListener("keydown", closeOnEscape); };
   }, [activeStory]);
 
+  useEffect(() => {
+    if (status !== "success") return;
+    const timer = window.setTimeout(() => setStatus("idle"), 3000);
+    return () => window.clearTimeout(timer);
+  }, [status]);
+
   async function publish() {
-    if (!upload) return;
+    if (!upload || publishingStory.current) return;
+    publishingStory.current = true;
     setError("");
+    setStatus("publishing");
     try {
       const story = await addStory(upload.secure_url);
       setStoryList((current) => [story, ...current.filter(({ userId: id }) => id !== userId)]);
       setUpload(null);
+      setStatus("success");
     } catch {
-      setError("Could not publish story.");
+      setStatus("error");
+      setError("Could not share story. Try again.");
+    } finally {
+      publishingStory.current = false;
     }
   }
 
   return (
     <>
       <div className="flex w-20 shrink-0 flex-col items-center gap-2 text-center">
-        <CldUploadWidget uploadPreset="converse" options={{ maxFiles: 1, resourceType: "image", clientAllowedFormats: ["jpg", "jpeg", "png", "webp"], maxFileSize: 8_000_000 }} onSuccess={(result) => { if (result.info && typeof result.info !== "string") setUpload(result.info); }}>
-          {({ open }) => <button type="button" onClick={() => open()} className="relative h-16 w-16 overflow-hidden rounded-full ring-2 ring-dashed ring-[var(--brand)]" aria-label="Choose a story image"><Image src={upload?.secure_url || user?.imageUrl || "/AvatarImage.jpg"} fill sizes="64px" alt="" className="object-cover opacity-60" /><span className="absolute inset-0 grid place-items-center"><Plus size={28} /></span></button>}
+        <CldUploadWidget
+          uploadPreset="converse"
+          options={{ maxFiles: 1, resourceType: "image", clientAllowedFormats: ["jpg", "jpeg", "png", "webp"], maxFileSize: 8_000_000 }}
+          onOpen={() => {
+            setError("");
+            if (status === "success" || status === "error") setStatus("idle");
+          }}
+          onUploadAdded={() => setStatus("uploading")}
+          onQueuesStart={() => setStatus("uploading")}
+          onSuccess={(result) => {
+            if (result.info && typeof result.info !== "string") {
+              setUpload(result.info);
+              setStatus("ready");
+            }
+          }}
+          onError={() => {
+            setStatus("error");
+            setError("Image upload failed. Try again.");
+          }}
+        >
+          {({ open, isLoading }) => (
+            <button
+              type="button"
+              onClick={() => open()}
+              disabled={isLoading || status === "uploading" || status === "publishing"}
+              className="relative h-16 w-16 overflow-hidden rounded-full ring-2 ring-dashed ring-[var(--brand)]"
+              aria-label="Choose a story image"
+            >
+              <Image src={upload?.secure_url || user?.imageUrl || "/AvatarImage.jpg"} fill sizes="64px" alt="" className="object-cover opacity-60" />
+              <span className="absolute inset-0 grid place-items-center bg-black/20">
+                {status === "uploading" ? <LoaderCircle className="animate-spin" size={25} /> : <Plus size={28} />}
+              </span>
+            </button>
+          )}
         </CldUploadWidget>
-        {upload ? <form action={publish}><button className="flex items-center gap-1 text-xs font-semibold text-[var(--brand)]"><Send size={13} /> Share</button></form> : <span className="text-xs font-medium">Add story</span>}
-        {error && <span className="text-[10px] text-rose-400">Retry</span>}
+        {upload ? (
+          <form action={publish}>
+            <button
+              className="flex items-center gap-1 text-xs font-semibold text-[var(--brand)]"
+              disabled={status === "publishing"}
+            >
+              {status === "publishing" ? <LoaderCircle className="animate-spin" size={13} /> : <Send size={13} />}
+              {status === "publishing" ? "Sharing…" : "Share"}
+            </button>
+          </form>
+        ) : (
+          <span className="text-xs font-medium">
+            {status === "uploading" ? "Uploading…" : status === "success" ? "Shared" : "Add story"}
+          </span>
+        )}
+        <span className="min-h-3 text-[10px]" role="status" aria-live="polite">
+          {status === "ready" && <span className="text-emerald-400">Ready to share</span>}
+          {status === "success" && <span className="inline-flex items-center gap-1 text-emerald-400"><CheckCircle2 size={11} /> Story shared</span>}
+          {status === "error" && <span className="text-rose-400">{error}</span>}
+        </span>
       </div>
       {storyList.map((story) => (
         <button key={story.id} type="button" className="flex w-20 shrink-0 flex-col items-center gap-2" onClick={() => setActiveStory(story)} aria-label={`View ${story.user.name || story.user.username}'s story`}>

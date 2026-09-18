@@ -6,26 +6,68 @@ import type { Prisma } from "@prisma/client";
 import { SendHorizontal, Trash2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useOptimistic, useState } from "react";
+import { useOptimistic, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 
 type CommentWithUser = Prisma.CommentGetPayload<{ include: { user: true } }>;
+type CommentAction =
+  | { type: "add"; comment: CommentWithUser }
+  | { type: "remove"; commentId: string };
+
+function CommentSubmitButton({ disabled }: { disabled: boolean }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      className="icon-action"
+      aria-label="Post comment"
+      disabled={disabled || pending}
+    >
+      <SendHorizontal size={18} />
+    </button>
+  );
+}
+
+function DeleteCommentButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      className="icon-action h-7 w-7 text-[var(--muted)] hover:text-rose-400"
+      aria-label="Delete comment"
+      disabled={pending}
+    >
+      <Trash2 size={14} />
+    </button>
+  );
+}
 
 export default function CommentList({ comments, postId, totalComments }: { comments: CommentWithUser[]; postId: string; totalComments: number }) {
   const { user } = useUser();
   const [description, setDescription] = useState("");
-  const [commentState, setCommentState] = useState(comments);
   const [error, setError] = useState("");
-  const [optimisticComments, addOptimisticComment] = useOptimistic(
-    commentState,
-    (state, value: CommentWithUser) => [value, ...state],
+  const submittingComment = useRef(false);
+  const [optimisticComments, updateOptimisticComments] = useOptimistic(
+    comments,
+    (state, action: CommentAction) => {
+      if (action.type === "remove") {
+        return state.filter(({ id }) => id !== action.commentId);
+      }
+
+      return [
+        action.comment,
+        ...state.filter(({ id }) => id !== action.comment.id),
+      ];
+    },
   );
 
   async function add() {
     const pendingDescription = description.trim();
-    if (!user || !pendingDescription) return;
+    if (!user || !pendingDescription || submittingComment.current) return;
+    submittingComment.current = true;
     setError("");
     const pendingComment = {
-      id: `pending-${pendingDescription}`,
+      id: `pending-${crypto.randomUUID()}`,
       desc: pendingDescription,
       createdAt: new Date(0),
       updatedAt: new Date(0),
@@ -46,22 +88,23 @@ export default function CommentList({ comments, postId, totalComments }: { comme
         description: null,
       },
     } satisfies CommentWithUser;
-    addOptimisticComment(pendingComment);
+    updateOptimisticComments({ type: "add", comment: pendingComment });
     setDescription("");
     try {
-      const created = await addComment(postId, pendingDescription);
-      setCommentState((current) => [created, ...current]);
+      await addComment(postId, pendingDescription);
     } catch {
       setDescription(pendingDescription);
       setError("Your comment was not posted. Please try again.");
+    } finally {
+      submittingComment.current = false;
     }
   }
 
   async function remove(commentId: string) {
     setError("");
+    updateOptimisticComments({ type: "remove", commentId });
     try {
       await deleteComment(commentId);
-      setCommentState((current) => current.filter(({ id }) => id !== commentId));
     } catch {
       setError("Your comment could not be deleted.");
     }
@@ -81,7 +124,7 @@ export default function CommentList({ comments, postId, totalComments }: { comme
               placeholder="Write a comment…"
               onChange={(event) => setDescription(event.target.value)}
             />
-            <button className="icon-action" aria-label="Post comment" disabled={!description.trim()}><SendHorizontal size={18} /></button>
+            <CommentSubmitButton disabled={!description.trim()} />
           </label>
         </form>
       )}
@@ -102,7 +145,7 @@ export default function CommentList({ comments, postId, totalComments }: { comme
                   <Link href={`/profile/${comment.user.username}`} className="truncate text-sm font-semibold hover:text-[var(--brand)]">{displayName}</Link>
                   {user?.id === comment.userId && !comment.id.startsWith("pending-") && (
                     <form action={() => remove(comment.id)}>
-                      <button className="icon-action h-7 w-7 text-[var(--muted)] hover:text-rose-400" aria-label="Delete comment"><Trash2 size={14} /></button>
+                      <DeleteCommentButton />
                     </form>
                   )}
                 </div>

@@ -34,9 +34,15 @@ button, input, textarea { font: inherit; }
 button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .45; }
 
-:focus-visible {
+button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
+
+:where(a, button, [role="button"]):focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 3px;
+}
+
+:where(input, textarea, select):focus-visible {
+  outline: none;
 }
 
 .surface {
@@ -58,6 +64,12 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .input-shell:focus-within {
   border-color: var(--brand);
   box-shadow: 0 0 0 3px rgb(85 184 255 / 12%);
+}
+
+.input-shell :where(input, textarea, select) {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
 }
 
 .icon-action {

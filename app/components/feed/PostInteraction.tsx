@@ -2,23 +2,53 @@
 
 import { switchLike } from "@/lib/actions";
 import { Bookmark, Heart, MessageSquare, Send } from "lucide-react";
-import { useOptimistic, useState } from "react";
+import { useOptimistic, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 
 type LikeState = { count: number; liked: boolean };
 
+function LikeButton({ state }: { state: LikeState }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      className="icon-action gap-2 px-2"
+      aria-label={state.liked ? "Unlike post" : "Like post"}
+      disabled={pending}
+    >
+      <Heart
+        size={20}
+        className={state.liked ? "text-rose-500" : ""}
+        fill={state.liked ? "currentColor" : "none"}
+      />
+      <span>{state.count}</span>
+      <span className="hidden sm:inline">Likes</span>
+    </button>
+  );
+}
+
 export default function PostInteraction({ postId, isLiked, likeCount, commentCount }: { postId: string; isLiked: boolean; likeCount: number; commentCount: number }) {
-  const [state, setState] = useState<LikeState>({ count: likeCount, liked: isLiked });
   const [error, setError] = useState("");
-  const [optimistic, updateOptimistic] = useOptimistic(state, (current) => ({ count: current.liked ? current.count - 1 : current.count + 1, liked: !current.liked }));
+  const submittingLike = useRef(false);
+  const [optimistic, updateOptimistic] = useOptimistic(
+    { count: likeCount, liked: isLiked },
+    (current) => ({
+      count: current.liked ? current.count - 1 : current.count + 1,
+      liked: !current.liked,
+    }),
+  );
 
   async function likeAction() {
+    if (submittingLike.current) return;
+    submittingLike.current = true;
     updateOptimistic(null);
     setError("");
     try {
       await switchLike(postId);
-      setState((current) => ({ count: current.liked ? current.count - 1 : current.count + 1, liked: !current.liked }));
     } catch {
       setError("Could not update your like. Please try again.");
+    } finally {
+      submittingLike.current = false;
     }
   }
 
@@ -27,10 +57,7 @@ export default function PostInteraction({ postId, isLiked, likeCount, commentCou
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1 sm:gap-2">
           <form action={likeAction}>
-            <button className="icon-action gap-2 px-2" aria-label={optimistic.liked ? "Unlike post" : "Like post"}>
-              <Heart size={20} className={optimistic.liked ? "text-rose-500" : ""} fill={optimistic.liked ? "currentColor" : "none"} />
-              <span>{optimistic.count}</span><span className="hidden sm:inline">Likes</span>
-            </button>
+            <LikeButton state={optimistic} />
           </form>
           <a href={`#comments-${postId}`} className="icon-action gap-2 px-2" aria-label={`${commentCount} comments`}>
             <MessageSquare size={20} /><span>{commentCount}</span><span className="hidden sm:inline">Comments</span>
