@@ -1,54 +1,45 @@
-"use client"
+"use client";
 
-import { switchLike } from "@/lib/actions"
-import { useAuth, useUser } from "@clerk/clerk-react"
-import { User } from "@clerk/nextjs/dist/types/server"
-import { Post } from "@prisma/client"
-import { Bookmark, Heart, MessageSquare, Send } from "lucide-react"
-import { useRouter } from "next/navigation"
-import { useOptimistic, useState } from "react"
+import { switchLike } from "@/lib/actions";
+import { Bookmark, Heart, MessageSquare, Send } from "lucide-react";
+import { useOptimistic, useState } from "react";
 
-const PostInteraction = ({ postId, likes, commentNumber, userId, postCreatorId }: { postId: string, likes: string[], commentNumber: number, userId: string, postCreatorId: string }) => {
-    const [likeState, setLikeState] = useState({
-        likeCount: likes.length,
-        isLiked: userId ? likes.includes(userId) : false,
-    })
+type LikeState = { count: number; liked: boolean };
 
-    const {user} = useUser();
+export default function PostInteraction({ postId, isLiked, likeCount, commentCount }: { postId: string; isLiked: boolean; likeCount: number; commentCount: number }) {
+  const [state, setState] = useState<LikeState>({ count: likeCount, liked: isLiked });
+  const [error, setError] = useState("");
+  const [optimistic, updateOptimistic] = useOptimistic(state, (current) => ({ count: current.liked ? current.count - 1 : current.count + 1, liked: !current.liked }));
 
-    console.log('userId for user', userId)
-    console.log('isLiked: userId ? likes.includes(userId) : false,', userId ? likes.includes(userId) : false,)
-    const [optimisticLike, switchOptimisticLike] = useOptimistic(likeState, (state, value) => {
-        return {
-            likeCount: state.isLiked ? state.likeCount - 1 : state.likeCount + 1,
-            isLiked: !state.isLiked
-        }
-    });
-    const router = useRouter();
-
-    const likeAction = async () => {
-        switchOptimisticLike("");
-        try {
-            await switchLike(postId, postCreatorId, user?.username || "");
-            setLikeState((state) => ({
-                likeCount: state.isLiked ? state.likeCount - 1 : state.likeCount + 1,
-                isLiked: !state.isLiked
-            }));
-        } catch (error) { }
+  async function likeAction() {
+    updateOptimistic(null);
+    setError("");
+    try {
+      await switchLike(postId);
+      setState((current) => ({ count: current.liked ? current.count - 1 : current.count + 1, liked: !current.liked }));
+    } catch {
+      setError("Could not update your like. Please try again.");
     }
+  }
 
-    return (
-        <div className="flex justify-between my-3">
-            <div className="flex gap-5">
-                <form action={likeAction}>
-                    <div className="flex gap-2"><button><Heart className={`${optimisticLike.isLiked ? "text-red-500" : ""} cursor-pointer`} fill={optimisticLike.isLiked ? "red" : "transparent"} /></button>{optimisticLike.likeCount}<span className="hidden md:inline">Likes</span></div>
-                </form>
-                <div className="flex gap-2"><MessageSquare className="cursor-pointer" />{commentNumber} <span className="md:inline hidden">Comments</span></div>
-                <Send className="cursor-pointer" />
-            </div>
-            <Bookmark className="cursor-pointer" />
+  return (
+    <div className="border-y border-[var(--border)] py-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1 sm:gap-2">
+          <form action={likeAction}>
+            <button className="icon-action gap-2 px-2" aria-label={optimistic.liked ? "Unlike post" : "Like post"}>
+              <Heart size={20} className={optimistic.liked ? "text-rose-500" : ""} fill={optimistic.liked ? "currentColor" : "none"} />
+              <span>{optimistic.count}</span><span className="hidden sm:inline">Likes</span>
+            </button>
+          </form>
+          <a href={`#comments-${postId}`} className="icon-action gap-2 px-2" aria-label={`${commentCount} comments`}>
+            <MessageSquare size={20} /><span>{commentCount}</span><span className="hidden sm:inline">Comments</span>
+          </a>
+          <button type="button" className="icon-action" aria-label="Share post" title="Share coming soon" disabled><Send size={20} /></button>
         </div>
-    )
+        <button type="button" className="icon-action" aria-label="Save post" title="Save coming soon" disabled><Bookmark size={20} /></button>
+      </div>
+      {error && <p className="px-2 pt-2 text-xs text-rose-400" role="status">{error}</p>}
+    </div>
+  );
 }
-
-export default PostInteraction

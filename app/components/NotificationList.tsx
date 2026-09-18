@@ -1,51 +1,9 @@
-"use client";
-
-import Image from "next/image";
-import { useRouter } from "next/navigation";
+import type { Notifications } from "@prisma/client";
+import { Bell, Check } from "lucide-react";
+import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-import { User } from "lucide-react";
 
-export default function NotificationsList({ notifications }: any) {
-  const router = useRouter();
-
-  return (
-    <div className="max-w-xl mx-auto p-4">
-      {/* Header */}
-      <h1 className="text-xl font-semibold mb-6">Notifications</h1>
-
-      <div className="flex flex-col gap-4">
-        {notifications.map((n: any) => (
-          <div
-            key={n.id}
-            onClick={() => router.push(`/post/${n.postId}`)}
-            className="flex gap-3 p-3 rounded-xl bg-neutral-900 hover:bg-neutral-800 cursor-pointer"
-          >
-            {/* Avatar */}
-            <Image
-              src="/AvatarImage.jpg"
-              width={44}
-              height={44}
-              alt="avatar"
-              className="rounded-full"
-            />
-            {/* Content */}
-            <div className="flex-1">
-              <p className="text-sm">{n.desc}</p>
-              <span className="text-xs text-gray-400">
-                {formatDistanceToNow(new Date(n.createdAt), {
-                  addSuffix: true,
-                })}
-              </span>
-            </div>
-          </div>
-        ))}
-
-        {notifications.length === 0 && (
-          <p className="text-center text-gray-400 mt-10">
-            No notifications yet
-          </p>
-        )}
-      </div>
-    </div>
-  );
+export default function NotificationsList({ notifications }: { notifications: Notifications[] }) {
+  if (!notifications.length) return <div className="empty-state"><Bell className="mx-auto text-[var(--brand)]" /><p className="mt-4 font-semibold">You’re all caught up</p><p className="mt-1 text-sm text-[var(--muted)]">New likes, comments, and requests will appear here.</p></div>;
+  return <div className="space-y-3">{notifications.map((notification) => <Link key={notification.id} href={`/post/${notification.postId}`} className="surface flex items-start gap-3 p-4 transition hover:border-[var(--brand)]/50 hover:bg-[var(--surface-2)]"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-sky-500/15 text-[var(--brand)]">{notification.isRead ? <Check size={18} /> : <Bell size={18} />}</span><span className="min-w-0 flex-1"><span className="block text-sm leading-5">{notification.desc}</span><span className="mt-1 block text-xs text-[var(--muted)]">{formatDistanceToNow(notification.createdAt, { addSuffix: true })}</span></span>{!notification.isRead && <span className="mt-2 h-2 w-2 rounded-full bg-[var(--brand)]" aria-label="Unread" />}</Link>)}</div>;
 }

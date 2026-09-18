@@ -8,29 +8,29 @@ datasource db {
 }
 
 model User {
-  id                String          @id @map("_id")
-  username          String          @unique
-  avatar            String?
-  cover             String?
-  description       String?
-  name              String?
-  surname           String?
-  city              String?
-  school            String?
-  work              String?
-  website           String?
-  createdAt         DateTime        @default(now())
-  posts             Post[]
-  likes             Like[]
-  comments          Comment[]
-  followers         Follower[]      @relation("UserFollowers")
-  following         Follower[]      @relation("UserFollowings")
-  followReqSent     FollowRequest[] @relation("FollowReqSent")
-  followReqRecieved FollowRequest[] @relation("FollowReqRecieved")
-  blockRecieved     Block[]         @relation("BlockRecieved")
-  blockSent         Block[]         @relation("BlockSent")
-  stories           Story[]
-  notifications     Notifications[]
+  id                 String          @id @map("_id")
+  username           String          @unique
+  avatar             String?
+  cover              String?
+  description        String?
+  name               String?
+  surname            String?
+  city               String?
+  school             String?
+  work               String?
+  website            String?
+  createdAt          DateTime        @default(now())
+  posts              Post[]
+  likes              Like[]
+  comments           Comment[]
+  followingRelations Follower[]      @relation("Follower")
+  followerRelations  Follower[]      @relation("Following")
+  followReqSent      FollowRequest[] @relation("FollowReqSent")
+  followReqRecieved  FollowRequest[] @relation("FollowReqRecieved")
+  blockRecieved      Block[]         @relation("BlockRecieved")
+  blockSent          Block[]         @relation("BlockSent")
+  stories            Story[]
+  notifications      Notifications[]
 }
 
 model Post {
@@ -44,6 +44,8 @@ model Post {
   likes         Like[]
   comments      Comment[]
   notifications Notifications[]
+
+  @@index([userId, createdAt])
 }
 
 model Story {
@@ -53,6 +55,8 @@ model Story {
   expiresAt DateTime
   user      User     @relation(fields: [userId], references: [id])
   userId    String   @unique
+
+  @@index([expiresAt])
 }
 
 model Comment {
@@ -65,6 +69,8 @@ model Comment {
   post      Post     @relation(fields: [postId], references: [id])
   postId    String
   likes     Like[]
+
+  @@index([postId, createdAt])
 }
 
 model Like {
@@ -76,15 +82,22 @@ model Like {
   postId    String?
   comment   Comment? @relation(fields: [commentId], references: [id])
   commentId String?
+
+  @@unique([userId, postId, commentId])
+  @@index([postId])
+  @@index([commentId])
 }
 
 model Follower {
   id          String   @id @default(cuid()) @map("_id")
   createdAt   DateTime @default(now())
-  follower    User     @relation("UserFollowers", fields: [followerId], references: [id])
+  follower    User     @relation("Follower", fields: [followerId], references: [id])
   followerId  String
-  following   User     @relation("UserFollowings", fields: [followingId], references: [id])
+  following   User     @relation("Following", fields: [followingId], references: [id])
   followingId String
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
 }
 
 model FollowRequest {
@@ -96,6 +109,7 @@ model FollowRequest {
   recieverId String
 
   @@unique([senderId, recieverId])
+  @@index([recieverId, createdAt])
 }
 
 model Block {
@@ -107,6 +121,7 @@ model Block {
   blockedId String
 
   @@unique([blockerId, blockedId])
+  @@index([blockedId])
 }
 
 model Notifications {
@@ -119,4 +134,6 @@ model Notifications {
   post      Post     @relation(fields: [postId], references: [id])
   postId    String
   isRead    Boolean  @default(false)
+
+  @@index([userId, isRead, expiresAt])
 }

@@ -1,205 +1,93 @@
 "use client";
+
+import { ClerkLoaded, ClerkLoading, SignedIn, SignedOut, UserButton, useUser } from "@clerk/nextjs";
+import { Bell, Home, LogIn, Search, UserRound, X } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import MobileMenu from "./MobileMenu";
-import { HomeIcon, LogIn, PanelsTopLeft, PersonStanding, PlusCircleIcon, Search, Bell, MessageCircle } from "lucide-react";
-import { ClerkLoaded, ClerkLoading, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
-import { markNotificationsAsRead } from "@/lib/actions";
-import { useEffect, useState } from "react";
 
-const Navbar = ({ hasUnread }: { hasUnread: boolean }) => {
-  const [search, setSearch] = useState("");
-  const [results, setResults] = useState<any[]>([]);
+type SearchResult = { id: string; username: string; name: string | null; surname: string | null; avatar: string | null };
+
+export default function Navbar({ unreadIndicator }: { unreadIndicator: ReactNode }) {
+  const pathname = usePathname();
+  const { user } = useUser();
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const normalizedQuery = query.trim();
+  const visibleResults = useMemo(() => normalizedQuery.length >= 2 ? results : [], [normalizedQuery, results]);
 
   useEffect(() => {
-    if (search.length < 2) {
-      setResults([]);
-      return;
-    }
-
-    const timeout = setTimeout(async () => {
+    if (normalizedQuery.length < 2) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
       setLoading(true);
-      const res = await fetch(`/api/search?q=${search}`);
-      const data = await res.json();
-      setResults(data);
-      setLoading(false);
-    }, 300);
+      try {
+        const response = await fetch(`/api/search?q=${encodeURIComponent(normalizedQuery)}`, { signal: controller.signal });
+        if (!response.ok) throw new Error("Search failed");
+        setResults(await response.json() as SearchResult[]);
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) setResults([]);
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }, 250);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [normalizedQuery]);
 
-    return () => clearTimeout(timeout);
-  }, [search]);
+  function closeSearch() {
+    setMobileSearchOpen(false);
+    setQuery("");
+    setResults([]);
+  }
 
-
-  const pathData = usePathname();
-  console.log("pathData", pathData);
-
-  const handleClick = async () => {
-    if (hasUnread) {
-      await markNotificationsAsRead();
-    }
-  };
+  const searchResults = (
+    <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl">
+      {loading && <p className="p-4 text-sm text-[var(--muted)]" role="status">Searching…</p>}
+      {!loading && normalizedQuery.length >= 2 && visibleResults.length === 0 && <p className="p-4 text-sm text-[var(--muted)]">No people found</p>}
+      {visibleResults.map((person) => (
+        <Link key={person.id} href={`/profile/${person.username}`} onClick={closeSearch} className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--surface-2)]">
+          <Image src={person.avatar || "/AvatarImage.jpg"} alt="" width={38} height={38} className="h-10 w-10 rounded-full object-cover" />
+          <span className="min-w-0 text-sm"><span className="block truncate font-semibold">{[person.name, person.surname].filter(Boolean).join(" ") || person.username}</span><span className="text-[var(--muted)]">@{person.username}</span></span>
+        </Link>
+      ))}
+    </div>
+  );
 
   return (
-    <nav className="w-full flex bg-[#121212] text-[#EAEAEA] font-bold p-4 justify-between items-center">
-      <Link href="/" className="text-lg hover:text-[#00A8E8]">Converse</Link>
-
-      <ul className="hidden lg:flex gap-8 text-sm items-center">
-        <li>
-          <Link href="/profile/1" className="hover:text-[#00A8E8] flex items-center gap-2">
-            <HomeIcon size={18} className="hidden lg:block" />HomePage
-          </Link>
-        </li>
-        <li>
-          <Link href="/" className="hover:text-[#00A8E8] flex items-center gap-2">
-            <PersonStanding className="hidden lg:block" />Friends
-          </Link>
-        </li>
-        <li>
-          <Link href="/" className="hover:text-[#00A8E8] flex items-center gap-2">
-            <PlusCircleIcon size={20} className="hidden lg:block" />Stories
-          </Link>
-        </li>
-      </ul>
-
-      <div className="relative hidden md:flex items-center bg-[#222] text-[#aaa] rounded-xl p-2">
-        <input
-          type="text"
-          placeholder="Search users..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="bg-transparent outline-none px-2"
-        />
-        <Search />
-
-        {/* Dropdown */}
-        {search && (
-          <div className="absolute top-12 left-0 w-full bg-[#1e1e1e] rounded-lg shadow-lg z-50">
-            {loading && (
-              <div className="p-2 text-sm text-gray-400">Searching...</div>
-            )}
-
-            {!loading && results.length === 0 && (
-              <div className="p-2 text-sm text-gray-400">No users found</div>
-            )}
-
-            {results.map((user) => (
-              <Link
-                key={user.id}
-                href={`/profile/${user.username}`}
-                onClick={() => setSearch("")}
-                className="flex items-center gap-3 p-2 hover:bg-[#333]"
-              >
-                <img
-                  src={user.avatar || "/default-avatar.png"}
-                  alt=""
-                  className="h-8 w-8 rounded-full"
-                />
-                <div className="text-sm">
-                  <div className="font-semibold">
-                    {user.name} {user.surname}
-                  </div>
-                  <div className="text-gray-400">@{user.username}</div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
-
-
-      <ClerkLoading><div>Loading...</div></ClerkLoading>
-
+    <nav className="flex h-16 items-center justify-between gap-3" aria-label="Primary navigation">
+      <Link href="/" className="flex items-center gap-2 text-lg font-extrabold tracking-tight"><span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-sky-300 to-blue-600 text-[#06131e]">C</span><span className="hidden sm:inline">Converse</span></Link>
+      <SignedIn>
+        <div className="hidden items-center gap-1 md:flex">
+          <Link href="/" className={`icon-action px-3 ${pathname === "/" ? "bg-[var(--surface-2)] text-[var(--brand)]" : ""}`} aria-label="Home"><Home size={20} /><span className="ml-2 hidden lg:inline">Home</span></Link>
+          {user?.username && <Link href={`/profile/${user.username}`} className={`icon-action px-3 ${pathname.startsWith("/profile/") ? "bg-[var(--surface-2)] text-[var(--brand)]" : ""}`} aria-label="My profile"><UserRound size={20} /><span className="ml-2 hidden lg:inline">Profile</span></Link>}
+        </div>
+        <div className="relative hidden w-full max-w-sm md:block">
+          <label className="input-shell flex items-center gap-2"><Search size={18} className="text-[var(--muted)]" /><span className="sr-only">Search people</span><input value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent text-sm outline-none" placeholder="Search people…" /></label>
+          {normalizedQuery.length >= 2 && searchResults}
+        </div>
+      </SignedIn>
+      <ClerkLoading><div className="h-9 w-24 animate-pulse rounded-lg bg-[var(--surface-2)]" aria-label="Loading account" /></ClerkLoading>
       <ClerkLoaded>
         <SignedIn>
-          <div className="flex items-center gap-4 cursor-pointer">
+          <div className="flex items-center gap-1 sm:gap-2">
             <MobileMenu />
-            <Link href="/" className="hidden md:flex hover:text-blue-500"><PanelsTopLeft /></Link>
-            <MessageCircle className="hidden md:flex hover:text-blue-500" />
-            <Search
-              className="md:hidden cursor-pointer hover:text-blue-500"
-              onClick={() => setMobileSearchOpen(true)}
-            />
-            {mobileSearchOpen && (
-              <div className="fixed inset-0 bg-black/80 z-50 flex flex-col p-4">
-                {/* Header */}
-                <div className="flex items-center gap-3 mb-4">
-                  <input
-                    autoFocus
-                    type="text"
-                    placeholder="Search users..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="flex-1 bg-[#222] text-white p-3 rounded-xl outline-none"
-                  />
-                  <button
-                    onClick={() => {
-                      setMobileSearchOpen(false);
-                      setSearch("");
-                      setResults([]);
-                    }}
-                    className="text-sm text-gray-300"
-                  >
-                    Cancel
-                  </button>
-                </div>
-                <div className="flex-1 overflow-y-auto">
-                  {loading && <div className="text-gray-400 p-2">Searching...</div>}
-
-                  {!loading && results.length === 0 && search && (
-                    <div className="text-gray-400 p-2">No users found</div>
-                  )}
-
-                  {results.map((user) => (
-                    <Link
-                      key={user.id}
-                      href={`/profile/${user.username}`}
-                      onClick={() => setMobileSearchOpen(false)}
-                      className="flex items-center gap-3 p-3 hover:bg-[#222] rounded-lg"
-                    >
-                      <img
-                        src={user.avatar || "/default-avatar.png"}
-                        className="h-10 w-10 rounded-full"
-                      />
-                      <div>
-                        <div className="font-semibold">
-                          {user.name} {user.surname}
-                        </div>
-                        <div className="text-gray-400 text-sm">
-                          @{user.username}
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <Link
-              href="/notifications"
-              onClick={handleClick}
-              className="relative"
-            >
-              <Bell
-                className={`cursor-pointer transition ${hasUnread ? "text-red-500" : "text-white"
-                  }`}
-              />
-              {hasUnread && (
-                <span className="absolute -top-1 -right-1 h-2 w-2 bg-red-500 rounded-full" />
-              )}
-            </Link>
-            <UserButton />
+            <button className="icon-action md:hidden" onClick={() => setMobileSearchOpen(true)} aria-label="Search people"><Search size={21} /></button>
+            <Link href="/notifications" className={`icon-action relative ${pathname === "/notifications" ? "bg-[var(--surface-2)] text-[var(--brand)]" : ""}`} aria-label="Notifications"><Bell size={21} />{unreadIndicator}</Link>
+            <UserButton appearance={{ elements: { avatarBox: "h-9 w-9" } }} />
           </div>
+          {mobileSearchOpen && (
+            <div className="fixed inset-0 z-[60] bg-[var(--page)] p-4 md:hidden" role="dialog" aria-modal="true" aria-label="Search people">
+              <div className="mx-auto flex max-w-lg items-center gap-2"><label className="input-shell flex flex-1 items-center gap-2"><Search size={18} /><span className="sr-only">Search people</span><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent outline-none" placeholder="Search people…" /></label><button onClick={closeSearch} className="icon-action" aria-label="Close search"><X /></button></div>
+              <div className="relative mx-auto mt-3 max-w-lg">{normalizedQuery.length >= 2 && searchResults}</div>
+            </div>
+          )}
         </SignedIn>
-
-        <SignedOut>
-          <Link href="/sign-in" className="flex items-center gap-2">
-            <LogIn size={18} />Login
-          </Link>
-        </SignedOut>
+        <SignedOut><Link href="/sign-in" className="primary-button"><LogIn size={18} /> Sign in</Link></SignedOut>
       </ClerkLoaded>
     </nav>
   );
-};
-
-export default Navbar;
+}

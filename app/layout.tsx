@@ -1,44 +1,40 @@
-import type { Metadata } from "next";
-import "./globals.css";
-import Navbar from "./components/Navbar";
-import {
-  ClerkProvider,
-  SignInButton,
-  SignUpButton,
-  SignedIn,
-  SignedOut,
-  UserButton,
-} from '@clerk/nextjs'
+import type { Metadata, Viewport } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
-import { hasUnreadNotifications } from "@/lib/notifications";
+import { Suspense } from "react";
+import Navbar from "./components/Navbar";
+import UnreadIndicator from "./components/UnreadIndicator";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Converse",
-  description: "Chat your way through...",
+  title: { default: "Converse", template: "%s · Converse" },
+  description: "Share moments and stay close to the people who matter.",
 };
 
-export default async function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export const viewport: Viewport = { themeColor: "#080b11", colorScheme: "dark" };
 
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const { userId } = await auth();
-
-  const hasUnread = userId
-    ? await hasUnreadNotifications(userId)
-    : false;
 
   return (
     <ClerkProvider>
       <html lang="en">
         <body>
-          <div className="w-full sm:px-4 md:px-8 lg:px-16 xl:px-32 2xl:px-48">
-            <Navbar hasUnread={hasUnread}/>
-          </div>
-          <div className="sm:px-4 md:px-8 lg:px-16 xl:px-32 2xl:px-48">
-            {children}
-          </div>
+          <a href="#main-content" className="sr-only z-[100] rounded-md bg-white p-3 text-black focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Skip to content</a>
+          <header className="sticky top-0 z-40 border-b border-white/5 bg-[rgb(8_11_17/85%)] backdrop-blur-xl">
+            <div className="mx-auto max-w-[1480px] px-3 sm:px-5 lg:px-8">
+              <Navbar
+                unreadIndicator={
+                  userId ? (
+                    <Suspense fallback={null}>
+                      <UnreadIndicator userId={userId} />
+                    </Suspense>
+                  ) : null
+                }
+              />
+            </div>
+          </header>
+          <main id="main-content" className="mx-auto max-w-[1480px] px-3 pb-12 sm:px-5 lg:px-8">{children}</main>
         </body>
       </html>
     </ClerkProvider>

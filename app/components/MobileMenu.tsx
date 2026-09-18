@@ -1,32 +1,45 @@
-"use client"
+"use client";
+
 import { useUser } from "@clerk/nextjs";
+import { Menu, X } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react"
+import { useEffect, useState } from "react";
 
-const MobileMenu = () => {
-  const { user, isLoaded } = useUser();
-  const [isOpen, setIsOpen] = useState(false);
+export default function MobileMenu() {
+  const { user } = useUser();
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false);
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  const links = [
+    { href: "/", label: "Home" },
+    ...(user?.username ? [{ href: `/profile/${user.username}`, label: "My profile" }] : []),
+    { href: "/notifications", label: "Notifications" },
+  ];
+
   return (
-    <>
-      <div className="md:hidden">
-        <div className="flex flex-col gap-[4.5] cursor-pointer" onClick={() => setIsOpen((prev) => !prev)}>
-          <div className={`w-6 h-1 bg-[#EAEAEA] rounded-sm ${isOpen ? "rotate-45" : ''} origin-left ease-in-out duration-500`} />
-          <div className={`w-6 h-1 bg-[#EAEAEA] rounded-sm ${isOpen ? "opacity-0" : ''} ease-in-out duration-500`} />
-          <div className={`w-6 h-1 bg-[#EAEAEA] rounded-sm ${isOpen ? "-rotate-45" : ''} origin-left ease-in-out duration-500`} />
+    <div className="md:hidden">
+      <button className="icon-action" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-controls="mobile-navigation" aria-label={open ? "Close navigation" : "Open navigation"}>
+        {open ? <X /> : <Menu />}
+      </button>
+      {open && (
+        <div id="mobile-navigation" className="fixed inset-x-0 bottom-0 top-[65px] z-50 border-t border-[var(--border)] bg-[var(--page)]/98 p-5 backdrop-blur-xl">
+          <nav aria-label="Mobile navigation" className="mx-auto flex max-w-md flex-col gap-2 pt-6">
+            {links.map((link) => (
+              <Link key={link.href} href={link.href} onClick={() => setOpen(false)} className="rounded-xl px-4 py-4 text-lg font-semibold hover:bg-[var(--surface-2)]">{link.label}</Link>
+            ))}
+          </nav>
         </div>
-
-        {isOpen && (
-          <div className="absolute w-full h-[calc(100vh-56px)] top-14 left-0 bg-[#121212] text-[#EAEAEA] font-bold flex flex-col items-center justify-center gap-12 z-100 duration-500 ease-in-out">
-            <Link href="/" className="hover:text-[#00A8E8] cursor-pointer" onClick={() => setIsOpen(false)}>Home</Link>
-            <Link href={`/profile/${user?.username}`} className="hover:text-[#00A8E8] cursor-pointer" onClick={() => setIsOpen(false)}>Profile</Link>
-            <Link href="/" className="hover:text-[#00A8E8] cursor-pointer" onClick={() => setIsOpen(false)}>Friends</Link>
-            <Link href="/" className="hover:text-[#00A8E8] cursor-pointer" onClick={() => setIsOpen(false)}>Groups</Link>
-            <Link href="/" className="hover:text-[#00A8E8] cursor-pointer" onClick={() => setIsOpen(false)}>Stories</Link>
-          </div>
-        )}
-      </div>
-    </>
-  )
+      )}
+    </div>
+  );
 }
-
-export default MobileMenu

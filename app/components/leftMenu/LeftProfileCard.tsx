@@ -7,33 +7,31 @@ import Link from "next/link";
 const LeftProfileCard = async () => {
     const { userId} = await auth();
     if(!userId) return null;
-    console.log('userId', userId)
-    const user = await prisma.user.findFirst({
+    const user = await prisma.user.findUnique({
         where: {
             id: userId
         },
         include: {
             _count: {
                 select: {
-                    followers:true
+                    followerRelations:true
                 }
             }
         }
     });
-    console.log('user', user);
     if(!user) return null;
 
     return (
         <>
-            <div className="flex flex-col gap-6 p-4 bg-[#121212] rounded-lg">
+            <div className="surface flex flex-col gap-6 p-4">
                 <div className="h-20 relative">
-                    <Image src={user?.cover || '/CoverImage.jpg'} width={80} height={80} alt="Image" className="rounded-lg w-full h-20" />
-                    <Image src={user?.avatar || '/AvatarImage.jpg'} width={80} height={80} alt="Image" className="object-cover rounded-full m-auto w-12 h-12 absolute left-0 right-0 -bottom-6 ring-1 ring-white" />
+                    <Image src={user.cover || '/CoverImage.jpg'} width={208} height={80} sizes="208px" alt="" className="h-20 w-full rounded-xl object-cover" />
+                    <Image src={user.avatar || '/AvatarImage.jpg'} width={48} height={48} alt="" className="absolute -bottom-6 left-0 right-0 m-auto h-12 w-12 rounded-full object-cover ring-2 ring-[var(--surface)]" />
                 </div>
                 <div className="flex flex-col gap-2">
                     <div className="w-full m-auto font-bold text-center">{(user.name && user.surname) ? user.name + " "  + user.surname :user?.username}</div>
-                    <div className="flex gap-2 text-sm font-bold items-center justify-center text-[#aaa]"><UserCheck size={16}/>{user?._count?.followers} Followers</div>
-                    <Link href={`/profile/${user.username}`} className="p-2 w-full rounded-lg bg-blue-500 cursor-pointer text-sm font-bold text-center">My Profile</Link>
+                    <div className="flex items-center justify-center gap-2 text-sm font-semibold text-[var(--muted)]"><UserCheck size={16}/>{user._count.followerRelations} Followers</div>
+                    <Link href={`/profile/${user.username}`} className="primary-button w-full text-sm">View profile</Link>
                 </div>
             </div>
         </>

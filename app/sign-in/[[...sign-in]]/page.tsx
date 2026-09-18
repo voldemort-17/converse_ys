@@ -1,9 +1,8 @@
+import type { Metadata } from "next";
 import { SignIn } from "@clerk/nextjs";
 
-export default function Page() {
-    return (<>
-        <div className="h-[calc(100vh-56px)] flex items-center justify-center">
-            <SignIn />;
-        </div>
-    </>);
+export const metadata: Metadata = { title: "Sign in" };
+
+export default function SignInPage() {
+  return <div className="grid min-h-[calc(100vh-64px)] place-items-center py-8"><SignIn /></div>;
 }

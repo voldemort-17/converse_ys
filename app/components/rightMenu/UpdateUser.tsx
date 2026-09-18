@@ -1,88 +1,54 @@
-"use client"
+"use client";
 
 import { updateUserData } from "@/lib/actions";
-import { User } from "@prisma/client"
-import { error } from "console";
-import { X } from "lucide-react";
+import type { User } from "@prisma/client";
+import type { CloudinaryUploadWidgetInfo } from "next-cloudinary";
 import { CldUploadWidget } from "next-cloudinary";
+import { Camera, X } from "lucide-react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { useActionState, useState } from "react"
-import { success } from "zod";
+import { useEffect, useState } from "react";
+import { useActionState } from "react";
 import UpdateButton from "./UpdateButton";
 
-const UpdateUser = ({ user }: { user: User }) => {
+const fields = [
+  ["name", "First name", "Jane"], ["surname", "Last name", "Doe"],
+  ["city", "City", "Helsinki"], ["school", "School", "University"],
+  ["work", "Work", "Company"], ["website", "Website", "https://example.com"],
+] as const;
+
+export default function UpdateUser({ user }: { user: User }) {
   const [open, setOpen] = useState(false);
-  const [cover, setCover] = useState<any>(false);
-  const [state, formAction] = useActionState(updateUserData, {success: false, error: false});
+  const [cover, setCover] = useState<CloudinaryUploadWidgetInfo | null>(null);
+  const [state, formAction] = useActionState(updateUserData, { success: false, error: false });
 
-  const router = useRouter();
-
-  const handleClose = () => {
-    setOpen(false);
-    state.success && router.refresh();
-  }
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false);
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", close);
+    return () => { document.body.style.overflow = ""; window.removeEventListener("keydown", close); };
+  }, [open]);
 
   return (
     <>
-      <span className="text-sm text-blue-500 cursor-pointer" onClick={() => setOpen(true)}>Update</span>
-      {open && <div className="absolute w-screen h-screen top-0 left-0 flex items-center justify-center z-50 bg-black/65">
-        <form action={(formData) =>formAction({formdata: formData, cover: cover?.secure_url || ''})} className="flex flex-col rounded-lg gap-2 px-12 py-8 shadow-md w-full lg:w-1/2 xl:w-1/3 bg-[#121212] opacity-100 relative">
-          <div className="flex justify-between">
-            <h1 className="text-lg font-bold">Update Profile</h1>
-            <div className="cursor-pointer font-bold" onClick={handleClose}><X size={18} /></div>
-          </div>
-          <div className="text-sx text-[#aaa] mt-4">Use the Navbar profile to change Avatar or username.</div>
-          <CldUploadWidget uploadPreset="converse" onSuccess={(res) => setCover(res.info)}>
-            {({ open }) => {
-              return (
-                <div className="my-4 flex flex-col gap-4" onClick={()=> open()}>
-                  <label htmlFor="" className="font-semibold">Cover Picture</label>
-                  <div className="flex gap-3 cursor-pointer items-center">
-                    <Image src={user.cover || "/CoverImage.jpg"} width={48} height={32} alt="Cover Image" className="w-12 h-8 rounded-md object-cover"></Image>
-                    <span className="text-xs underline text-[#aaa]">Change</span>
-                  </div>
-                </div>
-              );
-            }}
-          </CldUploadWidget>
-          <div className="flex flex-wrap gap-2 xl:gap-4 justify-between text-[#aaa]">
-            <div className="flex flex-col gap-4">
-              <label htmlFor="" className="text-xs">First Name</label>
-              <input type="text" name="name" placeholder={user.name || "John"} className="p-3 outline-none border-b border-[#aaa] text-sm" />
+      <button className="text-sm font-semibold text-[var(--brand)] hover:underline" onClick={() => setOpen(true)}>Edit profile</button>
+      {open && (
+        <div className="fixed inset-0 z-[70] grid place-items-center overflow-y-auto bg-black/75 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="edit-profile-title">
+          <button type="button" className="absolute inset-0" onClick={() => setOpen(false)} aria-label="Close profile editor" />
+          <form action={(formData) => formAction({ formdata: formData, cover: cover?.secure_url || "" })} className="surface relative z-10 my-auto max-h-[92vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-7">
+            <div className="flex items-center justify-between"><div><h2 id="edit-profile-title" className="text-xl font-bold">Edit profile</h2><p className="mt-1 text-sm text-[var(--muted)]">Keep your profile useful and easy to recognize.</p></div><button type="button" className="icon-action" onClick={() => setOpen(false)} aria-label="Close"><X /></button></div>
+            <CldUploadWidget uploadPreset="converse" options={{ maxFiles: 1, resourceType: "image", clientAllowedFormats: ["jpg", "jpeg", "png", "webp"], maxFileSize: 8_000_000 }} onSuccess={(result) => { if (result.info && typeof result.info !== "string") setCover(result.info); }}>
+              {({ open: openUploader }) => <button type="button" onClick={() => openUploader()} className="relative mt-6 block h-32 w-full overflow-hidden rounded-2xl"><Image src={cover?.secure_url || user.cover || "/CoverImage.jpg"} fill sizes="640px" alt="Cover preview" className="object-cover" /><span className="absolute inset-0 grid place-items-center bg-black/35 font-semibold"><span className="flex items-center gap-2 rounded-xl bg-black/55 px-4 py-2"><Camera size={18} /> Change cover</span></span></button>}
+            </CldUploadWidget>
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              {fields.map(([name, label, placeholder]) => <label key={name} className="text-sm font-medium"><span>{label}</span><input name={name} defaultValue={user[name] || ""} placeholder={placeholder} maxLength={name === "website" ? 200 : 60} className="input-shell mt-2 w-full outline-none" /></label>)}
+              <label className="text-sm font-medium sm:col-span-2"><span>Bio</span><textarea name="description" defaultValue={user.description || ""} maxLength={255} rows={3} className="input-shell mt-2 w-full resize-none outline-none" placeholder="Tell people a little about yourself" /></label>
             </div>
-            <div className="flex flex-col gap-4">
-              <label htmlFor="" className="text-xs">Last Name</label>
-              <input type="text" name="surname" placeholder={user.surname || "Wokes"} className="p-3 outline-none border-b border-[#aaa] text-sm" />
-            </div>
-            <div className="flex flex-col gap-4">
-              <label htmlFor="" className="text-xs">Description</label>
-              <input type="text" name="description" placeholder={user.description || "Time is moving forward..."} className="p-3 outline-none border-b border-[#aaa] text-sm" />
-            </div>
-            <div className="flex flex-col gap-4">
-              <label htmlFor="" className="text-xs">City</label>
-              <input type="text" name="city" placeholder={user.city || "Finland"} className="p-3 outline-none border-b border-[#aaa] text-sm" />
-            </div>
-            <div className="flex flex-col gap-4">
-              <label htmlFor="" className="text-xs">School</label>
-              <input type="text" name="school" placeholder={user.school || "St. Cambrdidge"} className="p-3 outline-none border-b border-[#aaa] text-sm" />
-            </div>
-            <div className="flex flex-col gap-4">
-              <label htmlFor="" className="text-xs">Work</label>
-              <input type="text" name="work" placeholder={user.work || "Apple.inc"} className="p-3 outline-none border-b border-[#aaa] text-sm" />
-            </div>
-            <div className="flex flex-col gap-4">
-              <label htmlFor="" className="text-xs">Website</label>
-              <input type="text" name="website" placeholder={user.website || "https://www.google.com"} className="p-3 outline-none border-b border-[#aaa] text-sm" />
-            </div>
-          </div>
-          <UpdateButton/>
-          {state.success && <span className="text-green-500 text-sm text-center">Profile has been updated Successfully! </span>}
-          {state.error && <span className="text-red-500 text-sm text-center">Something went Wrong!</span>}
-        </form>
-      </div>}
+            {(state.error || state.success) && <p className={`mt-4 text-sm ${state.error ? "text-rose-400" : "text-emerald-400"}`} role="status">{state.message}</p>}
+            <div className="mt-6 flex justify-end gap-3"><button type="button" className="rounded-xl px-4 py-2 text-sm font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)]" onClick={() => setOpen(false)}>Cancel</button><UpdateButton /></div>
+          </form>
+        </div>
+      )}
     </>
-  )
+  );
 }
-
-export default UpdateUser

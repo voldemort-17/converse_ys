@@ -1,57 +1,38 @@
-"use client"
+"use client";
 
-import { switchFollow, switchBlock } from "@/lib/actions"
-import { Ban } from "lucide-react"
-import { useOptimistic, useState } from "react"
+import { switchBlock, switchFollow } from "@/lib/actions";
+import { Ban } from "lucide-react";
+import { useOptimistic, useState } from "react";
 
-const UserInfoInteraction = ({ userId, currentUserId, isUserBlocked, isFollowing, isFollowReqSent }: { userId: string, currentUserId: string, isUserBlocked: boolean, isFollowing: boolean, isFollowReqSent: boolean }) => {
+type UserState = { blocked: boolean; following: boolean; requestSent: boolean };
 
-    const [userState, setUserState] = useState({
-        blocked: isUserBlocked,
-        following: isFollowing,
-        followReqSent: isFollowReqSent
-    })
+export default function UserInfoInteraction({ userId, isUserBlocked, isFollowing, isFollowReqSent }: { userId: string; isUserBlocked: boolean; isFollowing: boolean; isFollowReqSent: boolean }) {
+  const [state, setState] = useState<UserState>({ blocked: isUserBlocked, following: isFollowing, requestSent: isFollowReqSent });
+  const [error, setError] = useState("");
+  const [optimistic, updateOptimistic] = useOptimistic(state, (current, action: "follow" | "block") => action === "block"
+    ? { ...current, blocked: !current.blocked, following: false, requestSent: false }
+    : { ...current, following: current.following ? false : current.following, requestSent: current.following ? false : !current.requestSent });
 
-    const follow = async () => {
-        switchOptimisticState("follow");
-        try {
-            await switchFollow(userId);
-            setUserState((prev) => ({ ...prev, following: prev.following && false, followReqSent: !prev.following && !prev.followReqSent ? true : false }))
-        } catch (error) {
-            console.log('error', error)
-        }
-    };
+  async function follow() {
+    updateOptimistic("follow"); setError("");
+    try {
+      await switchFollow(userId);
+      setState((current) => ({ ...current, following: current.following ? false : current.following, requestSent: current.following ? false : !current.requestSent }));
+    } catch { setError("Could not update this follow request."); }
+  }
+  async function block() {
+    updateOptimistic("block"); setError("");
+    try {
+      await switchBlock(userId);
+      setState((current) => ({ blocked: !current.blocked, following: false, requestSent: false }));
+    } catch { setError("Could not update this block."); }
+  }
 
-    const [optimisticState, switchOptimisticState] = useOptimistic(userState, (state, value: "follow" | "block") => value === 'follow' ? ({
-        ...state,
-        following: state.following && false, followReqSent: !state.following && !state.followReqSent ? true : false
-    }) : ({
-        ...state,
-        blocked: !state.blocked
-    }));
-
-    const blockUser = async () => {
-        switchOptimisticState("block");
-        try {
-            await switchBlock(userId);
-            setUserState((prev) => ({ ...prev, blocked: !prev.blocked }))
-        } catch (error) {
-            console.log('error', error)
-        }
-    }
-
-    return (
-        <div className="flex flex-col gap-4">
-            <form action={follow}>
-                <button className="p-2 w-full rounded-lg bg-blue-500 cursor-pointer text-sm font-bold">{optimisticState.following ? "Following" : optimisticState.followReqSent ? "Follow Request Sent" : "Follow"}</button>
-            </form>
-            <form action={blockUser} className="self-end">
-                <button>
-                    <div className="text-sm flex w-full items-center gap-2 cursor-pointer text-red-500">{optimisticState.blocked ? "Unblock User" : "Block User"}</div>
-                </button>
-            </form>
-        </div>
-    )
+  return (
+    <div className="space-y-3 border-t border-[var(--border)] pt-4">
+      <form action={follow}><button className="primary-button w-full" disabled={optimistic.blocked}>{optimistic.following ? "Unfollow" : optimistic.requestSent ? "Cancel request" : "Follow"}</button></form>
+      <form action={block}><button className="flex w-full items-center justify-center gap-2 rounded-xl py-2 text-sm font-semibold text-rose-400 hover:bg-rose-500/10"><Ban size={16} />{optimistic.blocked ? "Unblock" : "Block"}</button></form>
+      {error && <p className="text-xs text-rose-400" role="status">{error}</p>}
+    </div>
+  );
 }
-
-export default UserInfoInteraction

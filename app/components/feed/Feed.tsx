@@ -1,73 +1,63 @@
-import { Bookmark, Ellipsis, Heart, MessageSquare, MessagesSquare, Save, Send } from "lucide-react"
-import Image from "next/image"
-import Comments from "./Comments"
-import { auth } from "@clerk/nextjs/server"
-import { prisma } from "@/lib/client"
-import { use } from "react"
-import Posts from "./Posts"
+import { auth } from "@clerk/nextjs/server";
+import { prisma } from "@/lib/client";
+import Posts from "./Posts";
 
-const Feed = async ({ username }: { username?: string }) => {
+const PAGE_SIZE = 20;
 
-    const { userId } = await auth();
-    if (!userId) return null;
-    let posts: any[] = [];
+export default async function Feed({ username }: { username?: string }) {
+  const { userId } = await auth();
+  if (!userId) return null;
 
-    if (username) {
-        posts = await prisma.post.findMany({
-            where: {
-                user: {
-                    username: username
-                }
-            },
-            include: {
-                user: true,
-                likes: {
-                    select: {
-                        userId: true
-                    }
-                },
-                _count: {
-                    select: {
-                        comments: true
-                    }
-                }
-            },
-            orderBy: {
-                createdAt: "desc"
-            }
-        })
-    }
+  const blocks = await prisma.block.findMany({
+    where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
+    select: { blockerId: true, blockedId: true },
+  });
+  const blockedUserIds = blocks.map((block) =>
+    block.blockerId === userId ? block.blockedId : block.blockerId,
+  );
 
-    if (!username && userId) {
-        const following = await prisma.follower.findMany({
-            where: {
-                followingId: userId
-            },
-            select: {
-                followerId: true,
-            }
-        });
+  let visibleUserIds: string[] | undefined;
+  if (!username) {
+    const following = await prisma.follower.findMany({
+      where: { followerId: userId, followingId: { notIn: blockedUserIds } },
+      select: { followingId: true },
+    });
+    visibleUserIds = [userId, ...following.map(({ followingId }) => followingId)];
+  }
 
-        const followingIds = following.map(f => f.followerId).filter(id => typeof id === "string");
-        const ids = [userId, ...followingIds]
+  const posts = await prisma.post.findMany({
+    where: username
+      ? { user: { username }, userId: { notIn: blockedUserIds } }
+      : { userId: { in: visibleUserIds } },
+    include: {
+      user: true,
+      likes: { where: { userId }, select: { userId: true } },
+      comments: {
+        take: 3,
+        orderBy: { createdAt: "desc" },
+        include: { user: true },
+      },
+      _count: { select: { comments: true, likes: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: PAGE_SIZE,
+  });
 
-        posts = await prisma.post.findMany({
-            where: {
-                userId: { in: ids }
-            },
-            include: { user: true, likes: { select: { userId: true } }, _count: { select: { comments: true } } },
-            orderBy: { createdAt: "desc" }
-        });
-    }
-
-    console.log('posts', posts)
+  if (!posts.length) {
     return (
-        <div className="flex flex-col gap-4 text-white">
-            {posts.length ? (posts.map((post) => (
-                <Posts key={post.id} post={post} currentUser={userId} />
-            ))) : "No Posts Found!"}
-        </div>
-    )
-}
+      <div className="empty-state">
+        <p className="text-base font-semibold text-white">Your feed is ready for new conversations</p>
+        <p className="mt-1 text-sm text-[var(--muted)]">Follow people or publish a post to get things moving.</p>
+      </div>
+    );
+  }
 
-export default Feed
+  return (
+    <div className="flex flex-col gap-5 text-white" aria-label="Post feed">
+      {posts.map((post) => <Posts key={post.id} post={post} currentUserId={userId} />)}
+      {posts.length === PAGE_SIZE && (
+        <p className="py-3 text-center text-sm text-[var(--muted)]">Showing the latest {PAGE_SIZE} posts.</p>
+      )}
+    </div>
+  );
+}

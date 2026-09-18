@@ -1,36 +1,12 @@
-import { prisma } from "@/lib/client"
-import { User } from "@prisma/client"
-import Image from "next/image"
-import Link from "next/link"
+import type { User } from "@prisma/client";
+import Image from "next/image";
+import { prisma } from "@/lib/client";
 
-const UserMedia = async ({ user }: { user: User }) => {
-    const postWithMedia = await prisma.post.findMany({
-        where: {
-            userId: user.id,
-            image: {
-                not: null
-            }
-        },
-        take: 8,
-        orderBy: {
-            createdAt: "desc"
-        }
-    })
-    return (
-        <>
-            <div className="flex flex-col gap-4 p-4 bg-[#121212] rounded-lg">
-                <div className="text-sm flex justify-between w-full">
-                    <div className="font-medium text-[#aaa] ">User Media</div>
-                    <Link href='/' className="font-medium text-blue-500 cursor-pointer">See all</Link>
-                </div>
-                <div className="flex flex-wrap gap-4">
-                    {postWithMedia.length ? postWithMedia.map((post: any) => (
-                        <Image key={post.id} src={post.image!} width={80} height={80} alt="Image" className="rounded-lg w-1/5 h-24 object-cover" />
-                    )) : "No Media Found !"}
-                </div>
-            </div>
-        </>
-    )
+export default async function UserMedia({ user }: { user: User }) {
+  const posts = await prisma.post.findMany({ where: { userId: user.id, image: { not: null } }, select: { id: true, image: true, desc: true }, take: 6, orderBy: { createdAt: "desc" } });
+  return (
+    <section className="surface p-5"><h2 className="text-sm font-semibold text-[var(--muted)]">Recent media</h2>
+      {posts.length ? <div className="mt-4 grid grid-cols-3 gap-2">{posts.map((post) => <a key={post.id} href={`#post-${post.id}`} className="relative aspect-square overflow-hidden rounded-lg"><Image src={post.image!} fill sizes="90px" alt={post.desc} className="object-cover transition hover:scale-105" /></a>)}</div> : <p className="mt-3 text-sm text-[var(--muted)]">No media shared yet.</p>}
+    </section>
+  );
 }
-
-export default UserMedia

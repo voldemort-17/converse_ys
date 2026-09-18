@@ -3,25 +3,13 @@ import Feed from "./components/feed/Feed";
 import LeftMenu from "./components/leftMenu/LeftMenu";
 import RightMenu from "./components/rightMenu/RightMenu";
 import Stories from "./components/Stories";
-import { currentUser } from "@clerk/nextjs/server";
-import { auth } from "@clerk/nextjs/server";
 
-export default async function Home() {
-  const {userId} = await auth();
-
+export default function Home() {
   return (
-    <>
-      <div className="flex gap-6 pt-6">
-          <div className="hidden xl:block w-[20%]"><LeftMenu type="home"/></div>
-          <div className="w-full lg:w-[70%] xl:w-[50%]">
-            <div className="flex flex-col gap-6">
-              <Stories/>
-              <AddPost/>
-              <Feed />
-            </div>
-          </div>
-          <div className="hidden lg:block w-[30%]"><RightMenu/></div>
-      </div>
-    </>
+    <div className="grid grid-cols-1 gap-5 pt-5 lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[240px_minmax(0,680px)_300px] xl:justify-center">
+      <aside className="hidden xl:block"><div className="sticky top-21"><LeftMenu type="home" /></div></aside>
+      <div className="min-w-0 space-y-5"><Stories /><AddPost /><Feed /></div>
+      <aside className="hidden lg:block"><div className="sticky top-21"><RightMenu /></div></aside>
+    </div>
   );
 }

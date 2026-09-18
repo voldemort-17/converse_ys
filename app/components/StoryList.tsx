@@ -1,140 +1,68 @@
-"use client"
+"use client";
 
-import { addStory } from "@/lib/actions"
-import { useUser } from "@clerk/nextjs"
-import { Story, User } from "@prisma/client"
-import { CldUploadWidget } from "next-cloudinary"
-import Image from "next/image"
-import { useRouter } from "next/navigation"
-import { useEffect, useOptimistic, useState } from "react"
+import { addStory } from "@/lib/actions";
+import { useUser } from "@clerk/nextjs";
+import type { Prisma } from "@prisma/client";
+import type { CloudinaryUploadWidgetInfo } from "next-cloudinary";
+import { CldUploadWidget } from "next-cloudinary";
+import { Plus, Send, X } from "lucide-react";
+import Image from "next/image";
+import { useEffect, useState } from "react";
 
-type StoryType = Story & { user: User }
+type StoryWithUser = Prisma.StoryGetPayload<{ include: { user: true } }>;
 
-const StoryList = ({ stories, userId }: { stories: StoryType[], userId: string }) => {
+export default function StoryList({ stories, userId }: { stories: StoryWithUser[]; userId: string }) {
+  const { user } = useUser();
+  const [storyList, setStoryList] = useState(stories);
+  const [upload, setUpload] = useState<CloudinaryUploadWidgetInfo | null>(null);
+  const [activeStory, setActiveStory] = useState<StoryWithUser | null>(null);
+  const [error, setError] = useState("");
 
-    const [storyList, setStoryList] = useState(stories);
-    const [img, setImg] = useState<any>();
-    const [activeStory, setActiveStory] = useState<StoryType | null>(null);
+  useEffect(() => {
+    if (!activeStory) return;
+    const timer = window.setTimeout(() => setActiveStory(null), 5000);
+    const closeOnEscape = (event: KeyboardEvent) => event.key === "Escape" && setActiveStory(null);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => { window.clearTimeout(timer); window.removeEventListener("keydown", closeOnEscape); };
+  }, [activeStory]);
 
-    const { user, isLoaded } = useUser();
-
-    const router = useRouter();
-
-    useEffect(() => {
-        if (!activeStory) return;
-
-        const timer = setTimeout(() => {
-            setActiveStory(null);
-        }, 5000); // 5 seconds
-
-        return () => clearTimeout(timer);
-    }, [activeStory]);
-
-
-    const add = async () => {
-        if (!img.secure_url) return;
-
-        setOptimisticStories({
-            id: Math.random().toString(),
-            img: img.secure_url,
-            createdAt: new Date(Date.now()),
-            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-            userId: userId,
-            user: {
-                id: userId,
-                avatar: user?.imageUrl || '/AvatarImage.jpg',
-                username: "Uploading...",
-                name: '' as string,
-                surname: '' as string,
-                work: '' as string,
-                city: '' as string,
-                website: '' as string,
-                school: '' as string,
-                createdAt: new Date(Date.now()),
-                cover: "",
-                description: ''
-            }
-        });
-        try {
-            const storyCreated = await addStory(img?.secure_url);
-            setStoryList(prev => [storyCreated, ...prev.filter(s => s.userId !== userId)]);
-            setImg(null);
-
-            router.refresh();
-        } catch (error) { }
+  async function publish() {
+    if (!upload) return;
+    setError("");
+    try {
+      const story = await addStory(upload.secure_url);
+      setStoryList((current) => [story, ...current.filter(({ userId: id }) => id !== userId)]);
+      setUpload(null);
+    } catch {
+      setError("Could not publish story.");
     }
+  }
 
-    const [optimisticStories, setOptimisticStories] = useOptimistic(
-        storyList,
-        (state, newStory: StoryType) => {
-            const filtered = state.filter(s => s.userId !== newStory.userId);
-            return [newStory, ...filtered];
-        }
-    );
-
-
-    return (
-        <>
-            <CldUploadWidget uploadPreset="converse" onSuccess={(res) => setImg(res.info)}>
-                {({ open }) => {
-                    return (
-                        <div className="flex flex-col items-center gap-2 cursor-pointer text-white relative">
-                            <Image src={img?.secure_url || user?.imageUrl || '/AvatarImage.jpg'} width={80} height={80} alt="Image" className="rounded-[50%] w-20 h-20 object-cover opacity-60" onClick={() => open()} />
-                            {img ? <form action={add}>
-                                <button className="text-xs bg-blue-500 rounded-md p-1">Send</button>
-                            </form> : <span className="font-medium">Add Story</span>}
-                            <div className="absolute text-6xl top-1" onClick={() => open()}>+</div>
-                        </div>
-                    );
-                }}
-            </CldUploadWidget>
-            {optimisticStories.map((story) => (
-                <div
-                    key={story.id}
-                    className="flex flex-col items-center gap-2 cursor-pointer text-white"
-                    onClick={() => setActiveStory(story)}
-                >
-                    <div className="p-[3px] rounded-full bg-blue-500">
-                        <div className="p-[2px] rounded-full bg-black">
-                            <Image
-                                src={story.user.avatar || "/AvatarImage.jpg"}
-                                width={80}
-                                height={80}
-                                alt="Image"
-                                className="rounded-full w-20 h-20 object-cover"
-                            />
-                        </div>
-                    </div>
-
-                    <span className="font-medium">
-                        {story.user.name || story.user.username}
-                    </span>
-                </div>
-            ))}
-            {activeStory && (
-                <div
-                    className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50"
-                    onClick={() => setActiveStory(null)}
-                >
-                    <div className="relative w-full max-w-sm">
-                        <Image
-                            src={activeStory.img}
-                            alt="Story"
-                            width={400}
-                            height={700}
-                            className="w-full h-auto rounded-xl object-cover"
-                        />
-
-                        {/* progress bar */}
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gray-700">
-                            <div className="h-full bg-blue-400 animate-progress" />
-                        </div>
-                    </div>
-                </div>
-            )}
-
-        </>
-    )
+  return (
+    <>
+      <div className="flex w-20 shrink-0 flex-col items-center gap-2 text-center">
+        <CldUploadWidget uploadPreset="converse" options={{ maxFiles: 1, resourceType: "image", clientAllowedFormats: ["jpg", "jpeg", "png", "webp"], maxFileSize: 8_000_000 }} onSuccess={(result) => { if (result.info && typeof result.info !== "string") setUpload(result.info); }}>
+          {({ open }) => <button type="button" onClick={() => open()} className="relative h-16 w-16 overflow-hidden rounded-full ring-2 ring-dashed ring-[var(--brand)]" aria-label="Choose a story image"><Image src={upload?.secure_url || user?.imageUrl || "/AvatarImage.jpg"} fill sizes="64px" alt="" className="object-cover opacity-60" /><span className="absolute inset-0 grid place-items-center"><Plus size={28} /></span></button>}
+        </CldUploadWidget>
+        {upload ? <form action={publish}><button className="flex items-center gap-1 text-xs font-semibold text-[var(--brand)]"><Send size={13} /> Share</button></form> : <span className="text-xs font-medium">Add story</span>}
+        {error && <span className="text-[10px] text-rose-400">Retry</span>}
+      </div>
+      {storyList.map((story) => (
+        <button key={story.id} type="button" className="flex w-20 shrink-0 flex-col items-center gap-2" onClick={() => setActiveStory(story)} aria-label={`View ${story.user.name || story.user.username}'s story`}>
+          <span className="rounded-full bg-gradient-to-br from-sky-300 via-blue-500 to-violet-500 p-[3px]"><span className="block rounded-full bg-[var(--page)] p-[2px]"><Image src={story.user.avatar || "/AvatarImage.jpg"} width={64} height={64} alt="" className="h-16 w-16 rounded-full object-cover" /></span></span>
+          <span className="w-full truncate text-xs font-medium">{story.user.name || story.user.username}</span>
+        </button>
+      ))}
+      {activeStory && (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-black/90 p-3" role="dialog" aria-modal="true" aria-label={`${activeStory.user.name || activeStory.user.username}'s story`}>
+          <div className="relative h-[min(82vh,760px)] w-full max-w-md overflow-hidden rounded-2xl bg-black" onClick={(event) => event.stopPropagation()}>
+            <Image src={activeStory.img} alt="Story" fill sizes="448px" priority className="object-contain" />
+            <div className="absolute inset-x-0 top-0 h-1 bg-white/20"><div className="h-full bg-white animate-progress" /></div>
+            <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/70 to-transparent p-4 pt-5"><span className="text-sm font-semibold">{activeStory.user.name || activeStory.user.username}</span><button type="button" onClick={() => setActiveStory(null)} className="icon-action bg-black/30 text-white" aria-label="Close story"><X /></button></div>
+          </div>
+          <button className="absolute inset-0 -z-10" onClick={() => setActiveStory(null)} aria-label="Close story viewer" />
+        </div>
+      )}
+    </>
+  );
 }
-
-export default StoryList

@@ -1,88 +1,120 @@
-"use client"
+"use client";
 
-import { addComment } from "@/lib/actions"
-import { useUser } from "@clerk/nextjs"
-import { Comment, User } from "@prisma/client"
-import { Ellipsis, Heart, SendHorizonalIcon, SmilePlus, Trash } from "lucide-react"
-import Image from "next/image"
-import Link from "next/link"
-import { useOptimistic, useState } from "react"
+import { addComment, deleteComment } from "@/lib/actions";
+import { useUser } from "@clerk/nextjs";
+import type { Prisma } from "@prisma/client";
+import { SendHorizontal, Trash2 } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { useOptimistic, useState } from "react";
 
-type CommentType = Comment & { user: User }
+type CommentWithUser = Prisma.CommentGetPayload<{ include: { user: true } }>;
 
-const CommentList = ({ comments, postId, postCreatorId }: { comments: CommentType[], postId: string, postCreatorId: string }) => {
-    const { user } = useUser();
-    const [desc, setDesc] = useState("");
-    const [commentState, setCommentState] = useState(comments);
+export default function CommentList({ comments, postId, totalComments }: { comments: CommentWithUser[]; postId: string; totalComments: number }) {
+  const { user } = useUser();
+  const [description, setDescription] = useState("");
+  const [commentState, setCommentState] = useState(comments);
+  const [error, setError] = useState("");
+  const [optimisticComments, addOptimisticComment] = useOptimistic(
+    commentState,
+    (state, value: CommentWithUser) => [value, ...state],
+  );
 
-    const add = async () => {
-        if(!user || !desc) return;
-        setOptimisticComment({
-            id: Math.random().toString(),
-            desc,
-            createdAt: new Date(Date.now()),
-            updatedAt: new Date(Date.now()),
-            userId: user.id,
-            postId: Math.random().toString(),
-            user: {
-                id: user.id,
-                avatar: user.imageUrl || '/AvatarImage.jpg',
-                username: user.username as string,
-                name: '' as string,
-                surname: '' as string,
-                work: '' as string,
-                city: '' as string,
-                website: '' as string,
-                school: '' as string,
-                createdAt: new Date(Date.now()),
-                cover: "",
-                description: ''
-            }
-        });
-        try {
-            const createdComment = await addComment(postId, desc, user?.username || "", postCreatorId);
-            setCommentState((prev) => [createdComment, ...prev]);
-            setDesc("");
-        } catch (error) {
-            
-        }
+  async function add() {
+    const pendingDescription = description.trim();
+    if (!user || !pendingDescription) return;
+    setError("");
+    const pendingComment = {
+      id: `pending-${pendingDescription}`,
+      desc: pendingDescription,
+      createdAt: new Date(0),
+      updatedAt: new Date(0),
+      userId: user.id,
+      postId,
+      user: {
+        id: user.id,
+        avatar: user.imageUrl || "/AvatarImage.jpg",
+        username: user.username || "you",
+        name: user.firstName,
+        surname: user.lastName,
+        work: null,
+        city: null,
+        website: null,
+        school: null,
+        createdAt: new Date(0),
+        cover: null,
+        description: null,
+      },
+    } satisfies CommentWithUser;
+    addOptimisticComment(pendingComment);
+    setDescription("");
+    try {
+      const created = await addComment(postId, pendingDescription);
+      setCommentState((current) => [created, ...current]);
+    } catch {
+      setDescription(pendingDescription);
+      setError("Your comment was not posted. Please try again.");
     }
+  }
 
-    const [optimisticComment, setOptimisticComment] = useOptimistic(commentState, (state, value: CommentType) => [value, ...state])
+  async function remove(commentId: string) {
+    setError("");
+    try {
+      await deleteComment(commentId);
+      setCommentState((current) => current.filter(({ id }) => id !== commentId));
+    } catch {
+      setError("Your comment could not be deleted.");
+    }
+  }
 
-    return (
-        <>
-            {user && <div className="flex gap-4 items-center">
-                <form action={add} className="flex flex-1 gap-2 items-center">
-                    <Image src={user?.imageUrl || '/AvatarImage.jpg'} alt='Avatar' height={32} width={32} className="cursor-pointer rounded-[50%] w-8 h-8 object-cover" />
-                    <div className="flex flex-1 bg-[#222] items-center p-2 rounded-lg gap-3">
-                        {/* TEXT Data  */}
-                        <input name="" value={desc} id="" className="flex-1 p-1 rounded-md bg-transparent font-medium outline-none" placeholder="Write a comment..." onChange={(e) => setDesc(e.target.value)}></input>
-                        <SmilePlus className="cursor-pointer text-[#aaa]" />
-                        <button><SendHorizonalIcon className="cursor-pointer text-[#aaa]" /></button>
-                    </div>
-                </form>
-            </div>}
-            {optimisticComment.map((comment) => (
-                <div className="flex gap-4 items-start" key={comment.id}>
-                    <Link href={`/profile/${comment.user?.username}`}><Image src={comment.user.avatar || '/AvatarImage.jpg'} alt='Avatar' height={40} width={40} className="cursor-pointer rounded-[50%] w-10 h-10 object-cover" /></Link>
-                    <div className="flex gap-2 flex-1 flex-col items-start rounded-lg">
-                        {/* TEXT Data  */}
-                        <div className="flex w-full items-center justify-between">
-                            <Link href={`/profile/${comment.user?.username}`} className="flex font-medium flex-1">{(comment.user.name && comment.user.surname) ? comment.user.name + " " + comment.user.surname : comment.user?.username}</Link>
-                            <Trash className="cursor-pointer" size={16}/>
-                        </div>
-                        <div>{comment.desc}</div>
-                        <div className="flex gap-4 my-2 items-center text-sm">
-                            <div className="flex gap-1 items-center"><Heart className="cursor-pointer" size={14} />1 <span className="hidden md:inline">Likes</span></div>
-                            <div className="text-[#aaa]">|</div>
-                            <div className="cursor-pointer">Reply</div>
-                        </div>
-                    </div>
+  return (
+    <section id={`comments-${postId}`} className="scroll-mt-24" aria-label="Comments">
+      {user && (
+        <form action={add} className="flex items-center gap-3">
+          <Image src={user.imageUrl || "/AvatarImage.jpg"} alt="" height={34} width={34} className="h-9 w-9 rounded-full object-cover" />
+          <label className="input-shell flex flex-1 items-center gap-2">
+            <span className="sr-only">Write a comment</span>
+            <input
+              value={description}
+              maxLength={500}
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+              placeholder="Write a comment…"
+              onChange={(event) => setDescription(event.target.value)}
+            />
+            <button className="icon-action" aria-label="Post comment" disabled={!description.trim()}><SendHorizontal size={18} /></button>
+          </label>
+        </form>
+      )}
+
+      {error && <p className="mt-2 text-xs text-rose-400" role="status">{error}</p>}
+      <div className="mt-4 space-y-4">
+        {optimisticComments.map((comment) => {
+          const displayName = comment.user.name && comment.user.surname
+            ? `${comment.user.name} ${comment.user.surname}`
+            : comment.user.username;
+          return (
+            <div className="flex items-start gap-3" key={comment.id}>
+              <Link href={`/profile/${comment.user.username}`} aria-label={`View ${displayName}'s profile`}>
+                <Image src={comment.user.avatar || "/AvatarImage.jpg"} alt="" height={36} width={36} className="h-9 w-9 rounded-full object-cover" />
+              </Link>
+              <div className="min-w-0 flex-1 rounded-2xl bg-[var(--surface-2)] px-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Link href={`/profile/${comment.user.username}`} className="truncate text-sm font-semibold hover:text-[var(--brand)]">{displayName}</Link>
+                  {user?.id === comment.userId && !comment.id.startsWith("pending-") && (
+                    <form action={() => remove(comment.id)}>
+                      <button className="icon-action h-7 w-7 text-[var(--muted)] hover:text-rose-400" aria-label="Delete comment"><Trash2 size={14} /></button>
+                    </form>
+                  )}
                 </div>
-            ))}
-        </>
-    )
+                <p className="mt-1 break-words text-sm leading-5 text-[var(--text)]">{comment.desc}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {totalComments > comments.length && (
+        <p className="mt-4 text-center text-xs text-[var(--muted)]">Showing the latest {comments.length} of {totalComments} comments</p>
+      )}
+    </section>
+  );
 }
-
-export default CommentList

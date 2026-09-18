@@ -1,20 +1,16 @@
-import { Album, Rss, Scroll, Settings2Icon, SquareActivity, StickyNote, Video } from "lucide-react"
-import Link from "next/link"
+import { Bell, Home, ShieldCheck } from "lucide-react";
+import Link from "next/link";
 
-const LeftMenuBar = () => {
+const links = [
+  { href: "/", label: "Home", icon: Home },
+  { href: "/notifications", label: "Notifications", icon: Bell },
+];
+
+export default function LeftMenuBar() {
   return (
-    <>
-      <div className="flex flex-col font-bold gap-4 p-4 bg-[#121212] text-[#aaa] rounded-lg text-sm">
-        <Link href='/' className="flex items-center gap-4 cursor-pointer hover:bg-[#1e1e1e] rounded-lg p-2"><SquareActivity size={16}/>Activity</Link>
-        <Link href='/' className="flex items-center gap-4 cursor-pointer hover:bg-[#1e1e1e] rounded-lg p-2"><StickyNote size={16}/>My Posts</Link>
-        <Link href='/' className="flex items-center gap-4 cursor-pointer hover:bg-[#1e1e1e] rounded-lg p-2"><Album size={16}/>Album</Link>
-        <Link href='/' className="flex items-center gap-4 cursor-pointer hover:bg-[#1e1e1e] rounded-lg p-2"><Video size={16}/>Video</Link>
-        <Link href='/' className="flex items-center gap-4 cursor-pointer hover:bg-[#1e1e1e] rounded-lg p-2"><Rss size={16}/>News</Link>
-        <Link href='/' className="flex items-center gap-4 cursor-pointer hover:bg-[#1e1e1e] rounded-lg p-2"><Scroll size={16}/>Lists</Link>
-        <Link href='/' className="flex items-center gap-4 cursor-pointer hover:bg-[#1e1e1e] rounded-lg p-2"><Settings2Icon size={16}/>Settings</Link>
-      </div>
-    </>
-  )
+    <nav className="surface flex flex-col gap-1 p-3" aria-label="Sidebar navigation">
+      {links.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-white"><Icon size={18} />{label}</Link>)}
+      <div className="mt-2 flex items-center gap-3 border-t border-[var(--border)] px-3 pt-4 text-xs text-[var(--muted)]"><ShieldCheck size={16} /> Private by design</div>
+    </nav>
+  );
 }
-
-export default LeftMenuBar

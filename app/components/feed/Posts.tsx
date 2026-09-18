@@ -1,34 +1,47 @@
-import Comments from "./Comments"
-import Image from "next/image"
-import { Post, User } from "@prisma/client"
-import PostInteraction from "./PostInteraction"
-import { Suspense } from "react"
-import PostData from "./PostData"
-import Link from "next/link"
+import type { Prisma } from "@prisma/client";
+import { formatDistanceToNow } from "date-fns";
+import Image from "next/image";
+import Link from "next/link";
+import CommentList from "./CommentList";
+import PostData from "./PostData";
+import PostInteraction from "./PostInteraction";
 
-type PostType = Post & { user: User } & { likes: [{ userId: string }] } & { _count: { comments: number } }
+export type FeedPost = Prisma.PostGetPayload<{
+  include: {
+    user: true;
+    likes: { select: { userId: true } };
+    comments: { include: { user: true } };
+    _count: { select: { comments: true; likes: true } };
+  };
+}>;
 
-const Posts = ({ post, currentUser }: { post: PostType, currentUser: string }) => {
-    console.log('post.likes', post.likes)
-    return (
-        <>
-            <div className="flex flex-col gap-4 p-4 bg-[#121212] rounded-lg text-sm shadow-md">
-                <div className="flex justify-between items-center">
-                    <div className="flex flex-1 items-center gap-4 font-bold text-white">
-                        <Image src={post.user.avatar || '/AvatarImage.jpg'} alt='Avatar' height={40} width={40} className="cursor-pointer rounded-[50%] w-10 h-10 object-cover" />
-                        <Link href={`/profile/${post.user?.username}`}><span className="cursor-pointer">{(post.user.name && post.user.surname) ? post.user.name + " " + post.user.surname : post.user?.username}</span></Link>
-                    </div>
-                    {currentUser === post.user.id && <PostData postId={post.id}/>}
-                </div>
-                {post.image && <Image src={post.image} alt='Avatar' height={40} width={40} className="cursor-pointer rounded-lg w-full h-auto object-cover" />}
-                {post.desc && <div><span className="font-bold">{post.user.username}</span> {post.desc}</div>}
-                <Suspense fallback="loading...">
-                    <PostInteraction userId={currentUser} postCreatorId={post.user.id} postId={post.id} commentNumber={post._count.comments} likes={post.likes.map((like: any) => like.userId)} />
-                </Suspense>
-                <Comments postId={post.id} postCreatorId={post.user.id}/>
-            </div>
-        </>
-    )
+export default function Posts({ post, currentUserId }: { post: FeedPost; currentUserId: string }) {
+  const displayName = post.user.name && post.user.surname
+    ? `${post.user.name} ${post.user.surname}`
+    : post.user.username;
+
+  return (
+    <article id={`post-${post.id}`} className="surface flex scroll-mt-24 flex-col gap-4 p-4 sm:p-5">
+      <header className="flex items-center justify-between gap-3">
+        <Link href={`/profile/${post.user.username}`} className="group flex min-w-0 items-center gap-3">
+          <Image src={post.user.avatar || "/AvatarImage.jpg"} alt="" height={44} width={44} className="h-11 w-11 shrink-0 rounded-full object-cover ring-1 ring-white/10" />
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-semibold text-white group-hover:text-[var(--brand)]">{displayName}</span>
+            <span className="block text-xs text-[var(--muted)]">@{post.user.username} · {formatDistanceToNow(post.createdAt, { addSuffix: true })}</span>
+          </span>
+        </Link>
+        {currentUserId === post.user.id && <PostData postId={post.id} />}
+      </header>
+
+      <p className="whitespace-pre-wrap break-words text-[15px] leading-6 text-[var(--text)]">{post.desc}</p>
+      {post.image && (
+        <div className="relative aspect-[4/3] max-h-[680px] overflow-hidden rounded-2xl bg-[var(--surface-2)]">
+          <Image src={post.image} alt={`Media shared by ${displayName}`} fill sizes="(max-width: 1024px) 100vw, 640px" className="object-contain" />
+        </div>
+      )}
+
+      <PostInteraction postId={post.id} isLiked={post.likes.length > 0} likeCount={post._count.likes} commentCount={post._count.comments} />
+      <CommentList comments={post.comments} postId={post.id} totalComments={post._count.comments} />
+    </article>
+  );
 }
-
-export default Posts

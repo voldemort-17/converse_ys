@@ -1,54 +1,44 @@
-import { prisma } from '@/lib/client';
-import { verifyWebhook } from '@clerk/nextjs/webhooks';
-import { NextRequest } from 'next/server'
+import { verifyWebhook } from "@clerk/nextjs/webhooks";
+import type { NextRequest } from "next/server";
+import { prisma } from "@/lib/client";
 
-export async function POST(req: NextRequest) {
+function usernameFor(data: { id: string; username?: string | null; first_name?: string | null; last_name?: string | null }) {
+  const preferred = data.username?.trim();
+  const name = `${data.first_name || ""}${data.last_name || ""}`.trim().replace(/\s+/g, "_").toLowerCase();
+  return preferred || `${name || "user"}_${data.id.slice(-8)}`;
+}
+
+export async function POST(request: NextRequest) {
   try {
-    const evt = await verifyWebhook(req, {signingSecret: process.env.CLERK_WEBHOOK_SIGNING_SECRET});
-
-    // Do something with payload
-    // For this guide, log payload to console
-    const { id } = evt.data
-    const eventType = evt.type
-    console.log(`Received webhook with ID ${id} and event type of ${eventType}`)
-    console.log('Webhook payload:', evt.data);
-    if(evt.type === "user.created"){
-      try {
-        await prisma.user.create({
-          data: {
-            id: id as string,
-            username: evt.data.username ?? `${evt.data.first_name ?? ""}${evt.data.last_name ?? ""}`.trim() ?? `user_${evt.data.id}`,
-            avatar: evt.data.image_url || "/AvatarImage.jpg",
-            cover: "/CoverImage.jpg"
-          }
-        })
-        return new Response("User is created Successfully !", {status: 201})
-      } catch (error) {
-        console.log('error', error)
-        return new Response("Failed to create the user!", {status: 500})
-      }
-    }
-    if(evt.type === "user.updated"){
-      try {
-        await prisma.user.update({
-          where: {
-            id: evt.data.id
-          },
-          data: {
-            username: evt.data.username ?? `${evt.data.first_name ?? ""}${evt.data.last_name ?? ""}`.trim() ?? `user_${evt.data.id}`,
-            avatar: evt.data.image_url || "/AvatarImage.jpg"
-          }
-        });
-        return new Response("User is Updated Successfully !", {status: 201})
-      } catch (error) {
-        console.log('error', error)
-        return new Response("Failed to update the user!", {status: 500})
-      }
+    const event = await verifyWebhook(request, { signingSecret: process.env.CLERK_WEBHOOK_SIGNING_SECRET });
+    if (event.type === "user.created" || event.type === "user.updated") {
+      const user = event.data;
+      await prisma.user.upsert({
+        where: { id: user.id },
+        create: { id: user.id, username: usernameFor(user), avatar: user.image_url || "/AvatarImage.jpg", cover: "/CoverImage.jpg", name: user.first_name, surname: user.last_name },
+        update: { username: usernameFor(user), avatar: user.image_url || "/AvatarImage.jpg", name: user.first_name, surname: user.last_name },
+      });
     }
 
-    return new Response('Webhook received', { status: 200 })
-  } catch (err) {
-    console.error('Error verifying webhook:', err)
-    return new Response('Error verifying webhook', { status: 400 })
+    if (event.type === "user.deleted" && event.data.id) {
+      const userId = event.data.id;
+      const posts = await prisma.post.findMany({ where: { userId }, select: { id: true, comments: { select: { id: true } } } });
+      const postIds = posts.map(({ id }) => id);
+      const commentIds = posts.flatMap(({ comments }) => comments.map(({ id }) => id));
+      await prisma.$transaction([
+        prisma.notifications.deleteMany({ where: { OR: [{ userId }, { postId: { in: postIds } }] } }),
+        prisma.like.deleteMany({ where: { OR: [{ userId }, { postId: { in: postIds } }, { commentId: { in: commentIds } }] } }),
+        prisma.comment.deleteMany({ where: { OR: [{ userId }, { postId: { in: postIds } }] } }),
+        prisma.post.deleteMany({ where: { userId } }),
+        prisma.story.deleteMany({ where: { userId } }),
+        prisma.followRequest.deleteMany({ where: { OR: [{ senderId: userId }, { recieverId: userId }] } }),
+        prisma.follower.deleteMany({ where: { OR: [{ followerId: userId }, { followingId: userId }] } }),
+        prisma.block.deleteMany({ where: { OR: [{ blockerId: userId }, { blockedId: userId }] } }),
+        prisma.user.deleteMany({ where: { id: userId } }),
+      ]);
+    }
+    return new Response("Webhook processed", { status: 200 });
+  } catch {
+    return new Response("Invalid webhook", { status: 400 });
   }
 }

@@ -1,52 +1,52 @@
-"use client"
+"use client";
 
-import { prisma } from '@/lib/client'
-import { useUser } from '@clerk/nextjs';
-import { auth, currentUser } from "@clerk/nextjs/server";
-import { Calendar1, CameraIcon, LaughIcon, PenSquare, Send, SmilePlus, Video } from "lucide-react"
-import { CldUploadWidget } from 'next-cloudinary';
-import Image from "next/image"
-import { useState } from 'react';
-import AddPostButton from './AddPostButton';
-import { addPost } from '@/lib/actions';
+import { addPost } from "@/lib/actions";
+import { useUser } from "@clerk/nextjs";
+import type { CloudinaryUploadWidgetInfo } from "next-cloudinary";
+import { CldUploadWidget } from "next-cloudinary";
+import { ImagePlus, X } from "lucide-react";
+import Image from "next/image";
+import { useRef, useState } from "react";
+import AddPostButton from "./AddPostButton";
 
-const AddPost = () => {
-    const { user, isLoaded } = useUser();
-    const [img, setImg] = useState<any>();
-    const [showPicker, setShowPicker] = useState(false);
-    if (!isLoaded) return "Loading...";
+export default function AddPost() {
+  const { user, isLoaded } = useUser();
+  const formRef = useRef<HTMLFormElement>(null);
+  const [image, setImage] = useState<CloudinaryUploadWidgetInfo | null>(null);
+  const [description, setDescription] = useState("");
+  const [error, setError] = useState("");
 
-    console.log('user Data', user)
+  if (!isLoaded) return <div className="surface h-40 animate-pulse" aria-label="Loading post composer" />;
 
-    return (
-        <div className="p-4 bg-[#121212] justify-between flex rounded-lg text-sm gap-4 shadow-md text-[#aaa]">
-            {/* IMAGE  */}
-            <Image src={user?.imageUrl || '/AvatarImage.jpg'} alt='Avatar' height={48} width={48} className="cursor-pointer rounded-[50%] w-12 h-12 object-cover" />
-            <div className="flex flex-col flex-1">
-                <form className="flex gap-4 flex-1 items-end" action={(formData) => addPost(formData, (img?.secure_url || ""))}>
-                    {/* TEXT Data  */}
-                    <textarea name="desc" id="" rows={4} className="bg-[#222] flex-1 p-2 rounded-md font-medium outline-none" placeholder="what's on your mind?"></textarea>
-                    <div className='flex flex-col gap-3'>
-                    <SmilePlus className="cursor-pointer" />
-                    {/* <button className='cursor-pointer'><Send /></button> */}
-                    <AddPostButton/>
-                    </div>
-                </form>
-                <div className="flex gap-4 items-center mt-4 flex-wrap">
-                    <CldUploadWidget uploadPreset="converse" onSuccess={(res) => setImg(res.info)}>
-                        {({ open }) => {
-                            return (
-                                <div className="flex items-center gap-2 font-bold cursor-pointer" onClick={()=> open()}><CameraIcon />Photo</div>
-                            );
-                        }}
-                    </CldUploadWidget>
-                    <div className="flex items-center gap-2 font-bold cursor-pointer"><Video />Video</div>
-                    <div className="flex items-center gap-2 font-bold cursor-pointer"><PenSquare />Poll</div>
-                    <div className="flex items-center gap-2 font-bold cursor-pointer"><Calendar1 />Event</div>
-                </div>
-            </div>
+  async function submit(formData: FormData) {
+    setError("");
+    try {
+      await addPost(formData, image?.secure_url || "");
+      formRef.current?.reset();
+      setDescription("");
+      setImage(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Your post could not be published.");
+    }
+  }
+
+  return (
+    <section className="surface p-4 sm:p-5" aria-labelledby="composer-title">
+      <h2 id="composer-title" className="sr-only">Create a post</h2>
+      <form ref={formRef} action={submit} className="flex gap-3 sm:gap-4">
+        <Image src={user?.imageUrl || "/AvatarImage.jpg"} alt="" height={44} width={44} className="h-11 w-11 shrink-0 rounded-full object-cover" />
+        <div className="min-w-0 flex-1">
+          <label><span className="sr-only">Post content</span><textarea name="desc" rows={3} maxLength={500} required value={description} onChange={(event) => setDescription(event.target.value)} className="input-shell w-full resize-none text-[15px] outline-none" placeholder="What do you want to share?" /></label>
+          {image && <div className="relative mt-3 w-fit"><Image src={image.secure_url} width={180} height={120} alt="Selected upload preview" className="h-28 w-40 rounded-xl object-cover" /><button type="button" onClick={() => setImage(null)} className="absolute -right-2 -top-2 grid h-7 w-7 place-items-center rounded-full bg-black text-white" aria-label="Remove selected image"><X size={15} /></button></div>}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] pt-3">
+            <CldUploadWidget uploadPreset="converse" options={{ maxFiles: 1, resourceType: "image", clientAllowedFormats: ["jpg", "jpeg", "png", "webp"], maxFileSize: 8_000_000 }} onSuccess={(result) => { if (result.info && typeof result.info !== "string") setImage(result.info); }}>
+              {({ open }) => <button type="button" onClick={() => open()} className="icon-action gap-2 px-3 text-sm"><ImagePlus size={19} className="text-emerald-400" /> Add photo</button>}
+            </CldUploadWidget>
+            <AddPostButton disabled={!description.trim()} />
+          </div>
+          {error && <p className="mt-3 text-sm text-rose-400" role="status">{error}</p>}
         </div>
-    )
+      </form>
+    </section>
+  );
 }
-
-export default AddPost

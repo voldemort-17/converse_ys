@@ -1,13 +1,9 @@
-"use client"
+"use client";
 
-import { Send, SendHorizonalIcon } from "lucide-react";
-import { useFormStatus } from "react-dom"
+import { SendHorizontal } from "lucide-react";
+import { useFormStatus } from "react-dom";
 
-const AddPostButton = () => {
-    const { pending } = useFormStatus();
-    return (
-        <button className="cursor-pointer disabled:cursor-not-allowed" disabled={pending}>{pending ? "Sending": <SendHorizonalIcon />}</button>
-    )
+export default function AddPostButton({ disabled }: { disabled?: boolean }) {
+  const { pending } = useFormStatus();
+  return <button className="primary-button h-11 px-4" disabled={pending || disabled}>{pending ? "Posting…" : <><SendHorizontal size={18} /> Post</>}</button>;
 }
-
-export default AddPostButton

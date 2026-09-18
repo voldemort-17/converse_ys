@@ -1,24 +1,25 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  agentRules: false,
   images: {
+    formats: ["image/avif", "image/webp"],
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'images.pexels.com'
+        protocol: "https",
+        hostname: "images.pexels.com",
       },
       {
-        protocol: 'https',
-        hostname: 'img.clerk.com'
+        protocol: "https",
+        hostname: "img.clerk.com",
       },
       {
-        protocol: 'https',
-        hostname: 'res.cloudinary.com'
-      }
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+      },
     ],
-    unoptimized: true
-  }
+  },
+  poweredByHeader: false,
 };
 
 export default nextConfig;
